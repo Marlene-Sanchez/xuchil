@@ -5,6 +5,7 @@ export interface RawTaskData {
   taskName: string;
   category: string;
   times: number[]; // Array of completion times in minutes
+  previousTimes?: number[]; //Previous period data
   id?: string | number;
 }
 
@@ -14,6 +15,7 @@ export interface TransformedTaskData {
   min: number;
   median: number;
   max: number;
+  previousMedian: number;
 }
 
 // Grouped by category for display

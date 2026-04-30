@@ -7,6 +7,7 @@ import HeaderXuchil from "@/components/HeaderXuchil";
 import PendingTaskCard from "@/components/PendingTaskCard";
 import Button from "@/components/Button";
 import styles from "./PendingTasks.module.css";
+import { fetchPendingTasks } from "@/constants/api";
 import { PendingTask } from "@/types/PendingTask";
 import { 
   RawTaskData, 
@@ -29,54 +30,6 @@ const BoxWhiskerChart = dynamic(
     )
   }
 );
-const fetchPendingTasks = (): PendingTask[] => { //this is just dummy data for now no integrations so far
-  return [
-    {
-      id: "1",
-      productId: "101",
-      productName: "Coffee Substitute",
-      variantId: "201",
-      startDate: "04/10/2026",
-      startedBy: "Juan Perez",
-      currentStep: "Mezcla",
-      currentStepNumber: 2,
-      totalSteps: 5,
-    },
-    {
-      id: "2",
-      productId: "102",
-      productName: "Cookies",
-      variantId: "202",
-      startDate: "04/11/2026",
-      startedBy: "Maria Lopez",
-      currentStep: "Horneado",
-      currentStepNumber: 3,
-      totalSteps: 6,
-    },
-    {
-      id: "3",
-      productId: "103",
-      productName: "Beans",
-      variantId: "203",
-      startDate: "04/12/2026",
-      startedBy: "Carlos Ruiz",
-      currentStep: "Empaque",
-      currentStepNumber: 4,
-      totalSteps: 4,
-    },
-    {
-      id: "4",
-      productId: "104",
-      productName: "Flour",
-      variantId: "204",
-      startDate: "04/13/2026",
-      startedBy: "Ana Torres",
-      currentStep: "Captura de resultados",
-      currentStepNumber: 5,
-      totalSteps: 5,
-    },
-  ];
-};
 
 
 
@@ -155,7 +108,31 @@ const testData = [
     {/* Charts Section - Toggleable */}
 {showCharts && (
   <div className={styles.chartsSection}>
-    <h2 className={styles.sectionTitle}>Análisis de Tareas</h2>
+    <h2 className={styles.sectionTitle}>Tiempo Mediano de las Tareas</h2>
+
+       <div style={{ 
+      display: 'flex', 
+      justifyContent: 'center', 
+      gap: '20px', 
+      marginBottom: '20px',
+      padding: '8px',
+      backgroundColor: '#f5f5f5',
+      borderRadius: '8px',
+      fontSize: '14px'
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ width: '14px', height: '14px', backgroundColor: '#214e34', borderRadius: '2px' }} />
+        <span>Mediana Actual</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ width: '14px', height: '14px', backgroundColor: '#ff7300', opacity: 0.6, borderRadius: '50%' }} />
+        <span>Mediana 30 días previos</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ width: '20px', height: '2px', backgroundColor: '#666' }} />
+        <span>Rango (Min - Max)</span>
+      </div>
+    </div>
     
     {chartLoading && (
       <div className={styles.loadingState}>
@@ -184,7 +161,7 @@ const testData = [
     
    {!chartLoading && !chartError && taskCategories.map((category, index) => (
   <div key={`${category.category}-${index}`} style={{ 
-    marginBottom: '10px',
+    marginBottom: '26px',
     width: '100%',
     minHeight: '40px',
     background: '#fafafa',
@@ -194,14 +171,14 @@ const testData = [
     justifyContent: 'center',
   }}>
     <div style={{ 
-      width: '100%',           // Take full width
-      maxWidth: '1000px',       // But no wider than 500px
-      minWidth: '275px'        // And no narrower than 250px
+      width: '100%',
+      maxWidth: '1000px',
+      minWidth: '275px'
     }}>
       <BoxWhiskerChart 
         data={category.tasks}
         title={category.category}
-        height={39}
+        height={49}
         unit="minutos"
       />
     </div>
@@ -212,7 +189,7 @@ const testData = [
 
       {/* Pending Tasks List */}
       <div className={styles.tasksSection}>
-        <h2 className={styles.sectionTitle}>Pending Tasks List</h2>
+        <h2 className={styles.sectionTitle}>Lista de tareas pendientes</h2>
         <div className={styles.container}>
           {tasks.length === 0 ? (
             <div className={styles.emptyState}>

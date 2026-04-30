@@ -1,4 +1,5 @@
 // src/utils/dataUtils.ts
+
 import { 
   RawTaskData, 
   TransformedTaskData, 
@@ -26,13 +27,15 @@ const calculateMedian = (sortedArray: number[]): number => {
 export const transformTaskDataForChart = (tasks: RawTaskData[]): TransformedTaskData[] => {
   return tasks.map(task => {
     const times = task.times || [];
+    const previousTimes = task.previousTimes || [];
     
     if (times.length === 0) {
       return {
         taskName: task.taskName,
         min: 0,
         median: 0,
-        max: 0
+        max: 0,
+        previousMedian: 0
       };
     }
     
@@ -40,12 +43,19 @@ export const transformTaskDataForChart = (tasks: RawTaskData[]): TransformedTask
     const min = sorted[0];
     const max = sorted[sorted.length - 1];
     const median = calculateMedian(sorted);
+
+    let previousMedian = 0;
+    if (previousTimes.length > 0) {
+      const sortedPrevious = [...previousTimes].sort((a, b) => a - b);
+      previousMedian = calculateMedian(sortedPrevious);
+    }
     
     return {
       taskName: task.taskName,
       min,
       median,
-      max
+      max,
+      previousMedian
     };
   });
 };
@@ -74,27 +84,31 @@ export const groupTasksByCategory = (tasks: RawTaskData[]): GroupedTaskCategory[
 export const generateMockTaskData = (): RawTaskData[] => {
   return [
     {
-      taskName: "Flour",
-      category: "Flour",
+      taskName: "Harina",
+      category: "Harina",
       times: [5, 6, 7, 8, 9, 6, 7, 8, 7, 6, 8, 9], // 5-9 min
+      previousTimes: [4, 5, 6, 7, 8, 5, 6, 7, 6, 5, 7, 8],
       id: "1"
     },
     {
-      taskName: "Cookies",
-      category: "Cookies", 
+      taskName: "Galletas",
+      category: "Galletas", 
       times: [8, 10, 12, 9, 11, 13, 10, 12, 11, 9, 10, 12], // 8-13 min
+      previousTimes: [7, 9, 9, 10, 15, 5, 6, 7, 6, 5, 7, 8],
       id: "2"
     },
     {
-      taskName: "Coffee Substitute",
-      category: "Coffee Substitute",
+      taskName: "Frijol",
+      category: "Frijol",
       times: [15, 18, 22, 25, 28, 20, 24, 26, 23, 21, 27, 30], // 15-30 min
+      previousTimes: [21, 22, 25, 27, 33, 13, 17, 13, 11, 38, 28, 35],
       id: "3"
     },
     {
-      taskName: "Beans",
-      category: "Beans",
+      taskName: "Sustituto de café",
+      category: "Stustituto de café",
       times: [20, 25, 28, 30, 32, 26, 29, 31, 27, 28, 30, 33], // 20-33 min
+      previousTimes: [21, 22, 25, 27, 33, 32, 22, 13, 18, 33, 30, 32],
       id: "4"
     }
   ];
