@@ -15,7 +15,6 @@ export interface TaskTimeData {
   min: number;
   median: number;
   max: number;
-  previousMedian?: number;
 }
 
 interface BoxWhiskerChartProps {
@@ -23,8 +22,7 @@ interface BoxWhiskerChartProps {
   title?: string;
   height?: number;
   unit?: string;
-  maxWidth?: string | number;
-  showPreviousPeriod?: boolean; 
+  maxWidth?: string | number; 
 }
 
 const BoxWhiskerChart: React.FC<BoxWhiskerChartProps> = ({ 
@@ -32,8 +30,7 @@ const BoxWhiskerChart: React.FC<BoxWhiskerChartProps> = ({
   title, 
   height = 180,
   unit = 'min',
-  maxWidth = '100%',
-  showPreviousPeriod = true
+  maxWidth = '100%'
 }) => {
   if (!data || data.length === 0) {
     return (
@@ -48,60 +45,28 @@ const BoxWhiskerChart: React.FC<BoxWhiskerChartProps> = ({
   const minValue = Math.min(...sortedData.map(d => d.min));
   
   // Set domain with padding on both sides
-  const xAxisMin = Math.max(0, Math.floor(minValue - 2));
-  const xAxisMax = Math.ceil(maxValue + 2);
+  const xAxisMin = Math.max(0, Math.floor(minValue - 2)); // Start just below min value
+  const xAxisMax = Math.ceil(maxValue + 2); // End just above max value
   
   // Calculate min, max, and median across all tasks
   const globalMin = Math.min(...sortedData.map(d => d.min));
   const globalMax = Math.max(...sortedData.map(d => d.max));
   const globalMedian = sortedData[Math.floor(sortedData.length / 2)]?.median || 0;
 
-  // Create custom ticks with min, median, and max
+  // Create custom ticks with min, median, and max (NO 0)
   const customTicks = [globalMin, globalMedian, globalMax]
     .filter((value, index, self) => self.indexOf(value) === index)
     .sort((a, b) => a - b);
+
+  console.log('Custom ticks:', customTicks); // Debug
 
   const chartData = sortedData.map((item, index) => ({
     taskName: item.taskName,
     median: item.median,
     min: item.min,
     max: item.max,
-    previousMedian: item.previousMedian,
     index: index,
   }));
-
-  // Custom square shape for current median
-  const CustomSquare = (props: any) => {
-    const { cx, cy } = props;
-    const size = 10;
-    return (
-      <rect
-        x={cx - size / 2}
-        y={cy - size / 2}
-        width={size}
-        height={size}
-        fill="#214e34"
-        rx={1}
-      />
-    );
-  };
-
-  // Custom circle shape for previous median
-  const CustomCircle = (props: any) => {
-    const { cx, cy } = props;
-    const radius = 6;
-    return (
-      <circle
-        cx={cx}
-        cy={cy}
-        r={radius}
-        fill="#ff7300"
-        fillOpacity={0.6}
-        stroke="#ff7300"
-        strokeOpacity={0.6}
-      />
-    );
-  };
 
   return (
     <div style={{ 
@@ -116,7 +81,7 @@ const BoxWhiskerChart: React.FC<BoxWhiskerChartProps> = ({
         <h3 style={{ 
           marginBottom: '6px', 
           color: '#333',
-          fontSize: '14px',
+          fontSize: '12px',
           fontWeight: '600',
           textAlign: 'left'
         }}>
@@ -128,7 +93,7 @@ const BoxWhiskerChart: React.FC<BoxWhiskerChartProps> = ({
         <ComposedChart
           data={chartData}
           layout="vertical"
-          margin={{ top: 2, right: 10, left: 0, bottom: 15 }}
+          margin={{ top: 2, right: 10, left: 0, bottom: 5 }}
           barCategoryGap={2}
           barGap={1}
         >
@@ -137,28 +102,30 @@ const BoxWhiskerChart: React.FC<BoxWhiskerChartProps> = ({
             domain={[xAxisMin, xAxisMax]}
             ticks={customTicks}
             tickCount={customTicks.length}
-            padding={{ left: 0, right: 0 }}
-            label={{ 
-              value: `Tiempo (${unit})`, 
-              position: 'bottom',
-              offset: 5,
-              style: { fontSize: '12px', fill: '#666' }
-            }}
-            tick={{ fontSize: 10 }}
-            axisLine={{ stroke: '#ccc', strokeWidth: 1 }}
-            tickLine={true}
-            allowDecimals={true}
-            interval={0}
-            allowDataOverflow={true}
-            scale="linear"
-            tickMargin={5}
-            tickFormatter={(value) => {
-              if (customTicks.includes(value)) {
-                return value % 1 === 0 ? `${value}` : `${value.toFixed(1)}`;
-              }
-              return '';
-            }}
-          />
+           padding={{ left: 0, right: 0 }}
+          label={{ 
+            value: `Tiempo (${unit})`, 
+            position: 'bottom',
+            offset: 5,
+            style: { fontSize: '9px', fill: '#666' }
+          }}
+          tick={{ fontSize: 8 }}
+          axisLine={{ stroke: '#ccc', strokeWidth: 1 }}
+          tickLine={true}
+          allowDecimals={true}
+          interval={0}
+          // Add this to prevent extra ticks
+          allowDataOverflow={true}
+          scale="linear"
+          tickMargin={5}
+          tickFormatter={(value) => {
+          // Only show values that are in your customTicks array
+          if (customTicks.includes(value)) {
+            return value % 1 === 0 ? `${value}` : `${value.toFixed(1)}`;
+           }
+          return '';
+         }}
+/>
           <YAxis 
             type="category" 
             dataKey="index"
@@ -167,11 +134,12 @@ const BoxWhiskerChart: React.FC<BoxWhiskerChartProps> = ({
             padding={{ top: 0, bottom: 0 }}
           />
           
-          {/* Current Median - Square (NO size prop) */}
           <Scatter 
             dataKey="median" 
-            shape={<CustomSquare />}
-            name="Mediana Actual"
+            fill="#214e34"
+            shape="square"
+            name="Mediana"
+            size={28}
           >
             <ErrorBar 
               dataKey="min" 
@@ -188,15 +156,6 @@ const BoxWhiskerChart: React.FC<BoxWhiskerChartProps> = ({
               width={6}
             />
           </Scatter>
-          
-          {/* Previous Median - Circle (NO size prop) */}
-          {showPreviousPeriod && (
-            <Scatter 
-              dataKey="previousMedian"
-              shape={<CustomCircle />}
-              name="Mediana Anterior"
-            />
-          )}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
