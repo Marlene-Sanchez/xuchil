@@ -1,30 +1,40 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import HeaderXuchil from "@/components/HeaderXuchil";
 import Modal from "@/components/Modal";
 import styles from "./User.module.css";
 
-interface Guest {
-  id: number;
-  displayName: string;
-  contactInfo: string | null;
+interface UserData {
+  name: string;
+  email: string;
+  phone: string;
+  avatar: string;
+  position: string;
+  expiresAt: string | null;
+  hours: string;
 }
 
 const UserProfile = () => {
   const router = useRouter();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [role, setRole] = useState<"user" | "admin" | null>(null);
-  const [userData, setUserData] = useState<any>(null);
-
-  // Guest management state
-  const [guests, setGuests] = useState<Guest[]>([]);
-  const [showGuestSection, setShowGuestSection] = useState(false);
-  const [newGuestName, setNewGuestName] = useState("");
-  const [newGuestContact, setNewGuestContact] = useState("");
-  const [newGuestPassword, setNewGuestPassword] = useState("");
-  const [guestLoading, setGuestLoading] = useState(false);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [showTemporaryForm, setShowTemporaryForm] = useState(false);
+  const [tempFullName, setTempFullName] = useState("");
+  const [tempEmail, setTempEmail] = useState("");
+  const [tempPhone, setTempPhone] = useState("");
+  const [tempRoleId, setTempRoleId] = useState("");
+  const [tempPassword, setTempPassword] = useState("");
+  const [tempDurationDays, setTempDurationDays] = useState("7");
+  const [tempLoading, setTempLoading] = useState(false);
+  const [creationModal, setCreationModal] = useState({
+    open: false,
+    title: "",
+    message: "",
+    error: false,
+  });
 
   useEffect(() => {
     let mounted = true;
@@ -47,6 +57,7 @@ const UserProfile = () => {
           phone: authUser.worker?.phone ?? "No especificado",
           avatar: authUser.worker?.profilePhotoUrl ?? "",
           position: authUser.worker?.role?.name ?? "Operador",
+          expiresAt: authUser.worker?.expiresAt ?? null,
           hours: "",
         });
       } catch {
@@ -59,69 +70,99 @@ const UserProfile = () => {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [router]);
 
-  // Load guests when admin opens section
-  useEffect(() => {
-    if (role === "admin" && showGuestSection) {
-      loadGuests();
+  const handleCreateTemporaryWorker = async () => {
+    if (!tempFullName.trim() || !tempEmail.trim() || !tempDurationDays.trim()) {
+      setCreationModal({
+        open: true,
+        title: "Campos incompletos",
+        message: "Completa nombre, correo y duración en días.",
+        error: true,
+      });
+      return;
     }
-  }, [role, showGuestSection]);
 
-  const loadGuests = async () => {
-    try {
-      const res = await fetch("/api/guests", { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        setGuests(data);
-      }
-    } catch (e) {
-      console.error("Failed to load guests:", e);
+    const parsedDuration = Number.parseInt(tempDurationDays, 10);
+    if (!Number.isInteger(parsedDuration) || parsedDuration <= 0) {
+      setCreationModal({
+        open: true,
+        title: "Duración inválida",
+        message: "La duración debe ser un número mayor que cero.",
+        error: true,
+      });
+      return;
     }
-  };
 
-  const handleCreateGuest = async () => {
-    if (!newGuestName.trim()) return;
-    setGuestLoading(true);
+    setTempLoading(true);
     try {
-      const res = await fetch("/api/guests", {
+      const response = await fetch("/api/users", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         credentials: "include",
         body: JSON.stringify({
-          displayName: newGuestName.trim(),
-          contactInfo: newGuestContact.trim() || null,
-          password: newGuestPassword || null,
-        }),
+            fullName: tempFullName.trim(),
+            phone: tempPhone.trim() || null,
+            email: tempEmail.trim(),
+            profilePhotoUrl: null,
+            roleId: tempRoleId.trim() ? Number.parseInt(tempRoleId, 10) : null,
+            temporaryDurationDays: parsedDuration,
+            password: tempPassword || undefined,
+          }),
       });
-      if (res.ok) {
-        setNewGuestName("");
-        setNewGuestContact("");
-        setNewGuestPassword("");
-        await loadGuests();
-      }
-    } catch (e) {
-      console.error("Failed to create guest:", e);
-    } finally {
-      setGuestLoading(false);
-    }
-  };
 
-  const handleDeleteGuest = async (guestId: number) => {
-    try {
-      await fetch(`/api/guests/${guestId}`, {
-        method: "DELETE",
-        credentials: "include",
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        setCreationModal({
+          open: true,
+          title: "Error al crear usuario temporal",
+          message: payload?.error || "No se pudo registrar el usuario temporal.",
+          error: true,
+        });
+        return;
+      }
+
+      const expiresAt = payload?.expiresAt
+        ? new Date(payload.expiresAt)
+        : new Date(Date.now() + parsedDuration * 24 * 60 * 60 * 1000);
+      const formattedExpiresAt = Number.isNaN(expiresAt.getTime())
+        ? `${parsedDuration} días`
+        : expiresAt.toLocaleDateString("es-MX");
+
+      setCreationModal({
+        open: true,
+        title: "Usuario temporal creado",
+        message: `El usuario fue registrado correctamente.\n\nContraseña temporal: ${payload?.temporaryPassword ?? "No disponible"}\nVence: ${formattedExpiresAt}`,
+        error: false,
       });
-      await loadGuests();
-    } catch (e) {
-      console.error("Failed to delete guest:", e);
+
+      setTempFullName("");
+      setTempEmail("");
+      setTempPhone("");
+      setTempRoleId("");
+      setTempDurationDays("7");
+      setShowTemporaryForm(false);
+    } catch {
+      setCreationModal({
+        open: true,
+        title: "Error al crear usuario temporal",
+        message: "Ocurrió un problema de red al registrar el usuario.",
+        error: true,
+      });
+    } finally {
+      setTempLoading(false);
     }
   };
 
   const confirmLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => null);
     router.push("/login");
+  };
+
+  const closeCreationModal = () => {
+    setCreationModal((current) => ({ ...current, open: false }));
   };
 
   if (!role || !userData) return null;
@@ -140,18 +181,6 @@ const UserProfile = () => {
         </Button>
       </div>
 
-      {role === "admin" && (
-        <div className={styles.actionButtonLeft}>
-          <Button
-            size="small"
-            action="primary"
-            onClick={() => router.push("/create_user")}
-          >
-            Crear usuario
-          </Button>
-        </div>
-      )}
-
       <div className={styles.headerContainer}>
         <h1>Perfil de usuario</h1>
       </div>
@@ -166,6 +195,11 @@ const UserProfile = () => {
 
           <h2 className={styles.profileName}>{userData.name}</h2>
           <p className={styles.profilePosition}>{userData.position}</p>
+          {userData.expiresAt && (
+            <p className={styles.profileHours}>
+              Vigencia: {new Date(userData.expiresAt).toLocaleDateString("es-MX")}
+            </p>
+          )}
           <p className={styles.profileHours}>{userData.hours}</p>
 
           <div className={styles.infoGroup}>
@@ -177,80 +211,88 @@ const UserProfile = () => {
           </div>
         </div>
 
-        {/* Guest Management Section - Admin only */}
         {role === "admin" && (
           <div className={styles.guestSection}>
             <button
               className={styles.guestToggle}
-              onClick={() => setShowGuestSection(!showGuestSection)}
+              onClick={() => router.push("/create_user")}
             >
-              <span>👥 Invitados</span>
-              <span>{showGuestSection ? "▲" : "▼"}</span>
+              <span>Crear usuario permanente</span>
+              <span>↗</span>
             </button>
+            <Button
+              className={styles.guestToggle}
+              size="small"
+              action="primary"
+              onClick={() => setShowTemporaryForm((current) => !current)}
+              style={{ width: "100%", marginTop: "8px" }}
+            >
+              {showTemporaryForm ? "Ocultar alta temporal" : "Crear temporal"}
+            </Button>
+          </div>
+        )}
 
-            {showGuestSection && (
-              <div className={styles.guestContent}>
-                {/* Guest List */}
-                {guests.length > 0 ? (
-                  <div className={styles.guestList}>
-                    {guests.map((guest) => (
-                      <div key={guest.id} className={styles.guestItem}>
-                        <div>
-                          <strong>{guest.displayName}</strong>
-                          {guest.contactInfo && (
-                            <span className={styles.guestContact}>
-                              {" "}— {guest.contactInfo}
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          className={styles.deleteGuestBtn}
-                          onClick={() => handleDeleteGuest(guest.id)}
-                          title="Eliminar invitado"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className={styles.noGuests}>No hay invitados registrados</p>
-                )}
+        {role === "admin" && showTemporaryForm && (
+          <div className={styles.guestSection} style={{ maxWidth: 420 }}>
+            <div className={styles.guestContent}>
+              <h3 className={styles.guestFormTitle} style={{ fontSize: "1rem" }}>
+                Nuevo trabajador temporal
+              </h3>
 
-                {/* Create Guest Form */}
-                <div className={styles.guestForm}>
-                  <h3 className={styles.guestFormTitle}>Nuevo invitado</h3>
-                  <input
-                    type="text"
-                    placeholder="Nombre del invitado *"
-                    value={newGuestName}
-                    onChange={(e) => setNewGuestName(e.target.value)}
-                    className={styles.guestInput}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Información de contacto"
-                    value={newGuestContact}
-                    onChange={(e) => setNewGuestContact(e.target.value)}
-                    className={styles.guestInput}
-                  />
-                  <input
-                    type="password"
-                    placeholder="Contraseña"
-                    value={newGuestPassword}
-                    onChange={(e) => setNewGuestPassword(e.target.value)}
-                    className={styles.guestInput}
-                  />
-                  <Button
-                    size="small"
-                    action="primary"
-                    onClick={handleCreateGuest}
-                  >
-                    {guestLoading ? "Creando..." : "Agregar invitado"}
-                  </Button>
-                </div>
-              </div>
-            )}
+              <input
+                type="text"
+                placeholder="Nombre completo *"
+                value={tempFullName}
+                onChange={(e) => setTempFullName(e.target.value)}
+                className={styles.guestInput}
+              />
+              <input
+                type="email"
+                placeholder="Correo electrónico *"
+                value={tempEmail}
+                onChange={(e) => setTempEmail(e.target.value)}
+                className={styles.guestInput}
+              />
+              <input
+                type="text"
+                placeholder="Teléfono"
+                value={tempPhone}
+                onChange={(e) => setTempPhone(e.target.value)}
+                className={styles.guestInput}
+              />
+              <input
+                type="password"
+                placeholder="Contraseña temporal (opcional)"
+                value={tempPassword}
+                onChange={(e) => setTempPassword(e.target.value)}
+                className={styles.guestInput}
+              />
+              <input
+                type="number"
+                min="1"
+                step="1"
+                placeholder="Duración en días *"
+                value={tempDurationDays}
+                onChange={(e) => setTempDurationDays(e.target.value)}
+                className={styles.guestInput}
+              />
+              <input
+                type="number"
+                placeholder="Role ID opcional"
+                value={tempRoleId}
+                onChange={(e) => setTempRoleId(e.target.value)}
+                className={styles.guestInput}
+              />
+
+              <Button
+                size="small"
+                action="primary"
+                onClick={handleCreateTemporaryWorker}
+                style={{ width: "100%" }}
+              >
+                {tempLoading ? "Creando..." : "Crear trabajador temporal"}
+              </Button>
+            </div>
           </div>
         )}
 
@@ -274,6 +316,16 @@ const UserProfile = () => {
         onCancel={() => setShowLogoutModal(false)}
         onConfirm={confirmLogout}
         danger
+      />
+
+      <Modal
+        open={creationModal.open}
+        title={creationModal.title}
+        message={creationModal.message}
+        confirmText="Aceptar"
+        onlyConfirm
+        onConfirm={closeCreationModal}
+        danger={creationModal.error}
       />
     </div>
   );

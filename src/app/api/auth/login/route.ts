@@ -27,6 +27,14 @@ export async function POST(req: Request) {
       );
     }
 
+    const workerExpired = user.worker?.expiresAt ? user.worker.expiresAt < new Date() : false;
+    if (!user.isActive || user.worker?.isActive === false || workerExpired) {
+      return NextResponse.json(
+        {error: "Account is not active"},
+        {status: 403}
+      );
+    }
+
     // Verify password
     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
     if (!passwordMatch) {
@@ -44,7 +52,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ ok: true });
-  } catch (error) {
+  } catch {
     return serverError('user', 'login', null)
   }
 }

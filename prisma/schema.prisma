@@ -151,6 +151,7 @@ model Worker {
   phone           String?
   profilePhotoUrl String?
   isActive        Boolean @default(true)
+  expiresAt       DateTime?
 
   role             Role?             @relation(fields: [roleId], references: [id])
   authUsers        AuthUser[]

@@ -69,6 +69,7 @@ const Modal: React.FC<ModalProps> = ({
           marginBottom: "24px",
           lineHeight: "1.5", // Mejor legibilidad
           wordBreak: "break-word", // Evita desbordamiento de texto
+          whiteSpace: "pre-line",
         }}>
           {message}
         </p>

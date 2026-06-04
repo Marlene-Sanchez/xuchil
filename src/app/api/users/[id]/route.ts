@@ -4,7 +4,6 @@ import {idError, notFoundError, serverError} from "@/utils/responses";
 import {verifySession} from "@/lib/session";
 
 export async function GET(
-  req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const payload = await verifySession();
@@ -28,7 +27,7 @@ export async function GET(
     }
 
     return NextResponse.json(user);
-  } catch (error) {
+  } catch {
     return serverError('user', 'fetch', null)
   }
 }
@@ -48,7 +47,8 @@ export async function PUT(
 
   try {
     const body = await req.json();
-    const { fullName, phone, profilePhotoUrl, isActive, isAdmin } = body;
+    const { fullName, phone, profilePhotoUrl, isActive, isAdmin, expiresAt } = body;
+    const parsedExpiresAt = expiresAt ? new Date(expiresAt) : undefined;
 
     const updatedUser = await prisma.authUser.update({
       where: { id: userId },
@@ -60,6 +60,7 @@ export async function PUT(
             fullName: fullName ?? undefined,
             phone: phone ?? undefined,
             profilePhotoUrl: profilePhotoUrl ?? undefined,
+            expiresAt: parsedExpiresAt && !Number.isNaN(parsedExpiresAt.getTime()) ? parsedExpiresAt : undefined,
           },
         },
       },
@@ -68,13 +69,12 @@ export async function PUT(
     });
 
     return NextResponse.json(updatedUser);
-  } catch (error) {
+  } catch {
     return serverError('user', 'update', null)
   }
 }
 
 export async function DELETE(
-  _req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const payload = await verifySession();
@@ -94,7 +94,7 @@ export async function DELETE(
     await prisma.authUser.delete({
       where: { id: userId },
     })
-  } catch (error) {
+  } catch {
     return serverError('user', 'delete', null)
   }
 }
