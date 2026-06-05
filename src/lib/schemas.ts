@@ -159,6 +159,12 @@ export const productVariantSchema = z.strictObject({
     isActive: z.boolean(typeError("isActive", "boolean")).optional()
 })
 
+export const productVariantWithStockSchema = productVariantSchema.extend({
+    initialStock: z.number().int().nonnegative().optional(),
+    lotCode: z.string().optional(),
+    receivedAt: z.string().optional(),
+})
+
 export const orderItemSchema = z.strictObject({
     // orderId: z.number().int(),
     productVariantId: z.number(requiredError("productVariantId")).int(typeError("productVariantId", "int")),
