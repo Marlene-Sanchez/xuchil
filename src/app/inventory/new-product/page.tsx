@@ -1,41 +1,111 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import HeaderXuchil from "@/components/HeaderXuchil";
 import BottomButton from "@/components/BottomButton";
 import TextField from "@/components/TextField";
 import styles from "./NewProduct.module.css";
-import { Product } from "@/types/Product";
-
+ 
 const NewProductPage = () => {
   const [name, setName] = useState("");
   const [presentation, setPresentation] = useState("");
   const [image, setImage] = useState("");
   const [quantity, setQuantity] = useState<number>(0);
-  const [units, setUnits] = useState("unidades");
+  const [defaultUnitId, setDefaultUnitId] = useState<number | null>(null);
+  const [unitOptions, setUnitOptions] = useState<Array<{ id: number; name: string }>>([]);
+  const [products, setProducts] = useState<Array<{ id: number; name: string; sku: string }>>([]);
 
-  const [categoryId, setCategoryId] = useState<string>("");
-  const [variantId, setVariantId] = useState<string>("");
+  const [productId, setProductId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const router = useRouter();
 
-  const handleSubmit = () => {
-    const newProduct: Product = {
-      id: crypto.randomUUID(),
-      name,
-      presentation,
-      image,
-      quantity,
-      units,
-      categoryId,
-      variantId,
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadData() {
+      const [unitsResponse, productsResponse] = await Promise.all([
+        fetch("/api/units", { credentials: "include" }),
+        fetch("/api/products", { credentials: "include" }),
+      ]);
+
+      if (unitsResponse.ok) {
+        const units = await unitsResponse.json();
+        if (mounted) {
+          setUnitOptions(units || []);
+          if (units?.length) {
+            setDefaultUnitId(units[0].id);
+          }
+        }
+      }
+
+      if (productsResponse.ok) {
+        const productsData = await productsResponse.json();
+        if (mounted) {
+          setProducts(productsData || []);
+          if (productsData?.length) {
+            setProductId(productsData[0].id);
+          }
+        }
+      }
+    }
+
+    loadData();
+
+    return () => {
+      mounted = false;
     };
+  }, []);
 
-    console.table(newProduct);
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError(null);
 
-    // Aquí podrías hacer un POST a tu API
-    router.replace("/products"); 
+    if (!productId || Number.isNaN(productId)) {
+      setError("Seleccione un producto válido.");
+      setLoading(false);
+      return;
+    }
+
+    if (quantity > 0 && !defaultUnitId) {
+      setError("Seleccione una unidad válida para el stock inicial.");
+      setLoading(false);
+      return;
+    }
+
+    const payload = {
+      productId,
+      name: name.trim() || "Variante",
+      presentation: presentation.trim() || undefined,
+      imageUrl: image.trim() || undefined,
+      isActive: true,
+      defaultUnitId: defaultUnitId ?? undefined,
+      initialStock: quantity > 0 ? quantity : undefined,
+      receivedAt: quantity > 0 ? new Date().toISOString() : undefined,
+      lotCode: quantity > 0 ? `PROD-${productId}-${Date.now()}` : undefined,
+    } as any;
+
+    try {
+      const response = await fetch("/api/product-variants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.error || body?.message || "Error creando variante de producto");
+      }
+
+      router.replace("/inventory/products");
+    } catch (err: any) {
+      setError(err.message || "Error al crear variante");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -76,7 +146,10 @@ const NewProductPage = () => {
         <TextField
           placeholder="Cantidad"
           value={quantity.toString()}
-          onChange={(e) => setQuantity(Number(e.target.value))}
+          onChange={(e) => {
+            const parsed = Number(e.target.value);
+            setQuantity(Number.isNaN(parsed) ? 0 : parsed);
+          }}
         />
       </div>
 
@@ -84,36 +157,42 @@ const NewProductPage = () => {
       <div className={`${styles.fieldContainer} ${styles.centeredControl}`}>
         <select
           className={styles.select}
-          value={units}
-          onChange={(e) => setUnits(e.target.value)}
+          value={defaultUnitId ?? ""}
+          onChange={(e) => setDefaultUnitId(Number(e.target.value))}
         >
-          <option value="unidades">Unidades</option>
-          <option value="kg">Kilogramos (kg)</option>
-          <option value="g">Gramos (g)</option>
-          <option value="L">Litros (L)</option>
-          <option value="ml">Mililitros (ml)</option>
+          {unitOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.name}
+            </option>
+          ))}
         </select>
       </div>
 
-      <h3 className={styles.fieldLabel}>Categoría:</h3>
+      <h3 className={styles.fieldLabel}>Producto base:</h3>
       <div className={styles.fieldContainer}>
-        <TextField
-          placeholder="ID o nombre de categoría"
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-        />
+        <select
+          className={styles.select}
+          value={productId ?? ""}
+          onChange={(e) => setProductId(Number(e.target.value))}
+          disabled={products.length === 0}
+        >
+          {products.length === 0 ? (
+            <option value="">Cargando productos...</option>
+          ) : (
+            products.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.name} {product.sku ? `(${product.sku})` : ""}
+              </option>
+            ))
+          )}
+        </select>
       </div>
 
-      <h3 className={styles.fieldLabel}>Variante:</h3>
-      <div className={styles.fieldContainer}>
-        <TextField
-          placeholder="ID o nombre de variante"
-          value={variantId}
-          onChange={(e) => setVariantId(e.target.value)}
-        />
-      </div>
+      {error ? <p className={styles.error}>{error}</p> : null}
 
-      <BottomButton onClick={handleSubmit}>Registrar producto</BottomButton>
+      <BottomButton onClick={handleSubmit} disabled={loading}>
+        {loading ? "Guardando..." : "Registrar producto"}
+      </BottomButton>
     </div>
   );
 };
