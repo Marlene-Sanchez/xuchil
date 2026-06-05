@@ -1,282 +1,348 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import HeaderXuchil from "@/components/HeaderXuchil";
 import Button from "@/components/Button";
+import HeaderXuchil from "@/components/HeaderXuchil";
 import Modal from "@/components/Modal";
+import styles from "../user/User.module.css"; 
 
-const CreateUser = () => {
+interface SystemUser {
+  id: number;
+  displayName: string;
+  contactInfo: string | null;
+  role?: "empleado" | "temporal";
+  isActive?: boolean;
+}
+
+const CreateUserPage = () => {
   const router = useRouter();
+  const [userType, setUserType] = useState<"permanente" | "temporal">("permanente");
+  const [loading, setLoading] = useState(false);
+  const [usersList, setUsersList] = useState<SystemUser[]>([
+    {
+      id: 101,
+      displayName: "Alejandro Ruiz",
+      contactInfo: "alejandro.ruiz@xuchil.com",
+      role: "empleado",
+      isActive: true,
+    },
+    {
+      id: 102,
+      displayName: "Sofía Hernández (Marlene Design)",
+      contactInfo: "951-123-4567",
+      role: "temporal",
+      isActive: true,
+    }
+  ]);
 
-  const [name, setName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [secondLastName, setSecondLastName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [tempFullName, setTempFullName] = useState("");
+  const [tempEmail, setTempEmail] = useState("");
+  const [tempPhone, setTempPhone] = useState("");
+  const [tempPassword, setTempPassword] = useState("");
+  const [tempDurationDays, setTempDurationDays] = useState("7");
+  const [tempRoleId, setTempRoleId] = useState("");
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [permName, setPermName] = useState("");
+  const [permLastNameP, setPermLastNameP] = useState("");
+  const [permLastNameM, setPermLastNameM] = useState("");
+  const [permPhone, setPermPhone] = useState("");
+  const [permEmail, setPermEmail] = useState("");
+  const [permUsername, setPermUsername] = useState("");
+  const [permPassword, setPermPassword] = useState("");
+  const [permConfirmPassword, setPermConfirmPassword] = useState("");
 
-  const [modal, setModal] = useState({
+  const [notificationModal, setNotificationModal] = useState({
     open: false,
     title: "",
     message: "",
     error: false,
   });
 
-  const isPasswordValid = (pwd: string) =>
-    /[a-z]/.test(pwd) &&
-    /[A-Z]/.test(pwd) &&
-    /\d/.test(pwd) &&
-    pwd.length >= 8;
+  useEffect(() => {
+    loadSystemUsers();
+  }, []);
 
-  const isEmailValid = (email: string) =>
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-  const isPhoneValid = (phone: string) =>
-    phone.replace(/\D/g, "").length >= 10;
-
-  const handleCreateUser = async () => {
-    if (
-      !name ||
-      !lastName ||
-      !secondLastName ||
-      !phone ||
-      !email ||
-      !username ||
-      !password ||
-      !confirmPassword
-    ) {
-      return setModal({
-        open: true,
-        title: "Campos incompletos",
-        message: "Por favor completa todos los campos.",
-        error: true,
-      });
+  const loadSystemUsers = async () => {
+    try {
+      const res = await fetch("/api/guests", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.length > 0) {
+          setUsersList(data);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load users:", e);
     }
+  };
 
-    if (!isPhoneValid(phone)) {
-      return setModal({
-        open: true,
-        title: "Teléfono inválido",
-        message: "El número debe tener al menos 10 dígitos.",
-        error: true,
-      });
-    }
-
-    if (!isEmailValid(email)) {
-      return setModal({
-        open: true,
-        title: "Correo inválido",
-        message: "Ingresa un correo electrónico válido.",
-        error: true,
-      });
-    }
-
-    if (password !== confirmPassword) {
-      return setModal({
-        open: true,
-        title: "Contraseñas no coinciden",
-        message: "La contraseña y su confirmación deben ser iguales.",
-        error: true,
-      });
-    }
-
-    if (!isPasswordValid(password)) {
-      return setModal({
-        open: true,
-        title: "Contraseña inválida",
-        message: "Debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número.",
-        error: true,
-      });
-    }
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
 
     try {
+      const isTemp = userType === "temporal";
       const response = await fetch("/api/users", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
-          fullName: `${name} ${lastName} ${secondLastName}`.trim(),
-          phone,
-          email,
+          fullName: isTemp ? tempFullName.trim() : `${permName.trim()} ${permLastNameP.trim()} ${permLastNameM.trim()}`.trim(),
+          phone: isTemp ? (tempPhone.trim() || null) : (permPhone.trim() || null),
+          email: isTemp ? tempEmail.trim() : permEmail.trim(),
           profilePhotoUrl: null,
-          password,
+          roleId: isTemp ? (tempRoleId.trim() ? Number.parseInt(tempRoleId, 10) : null) : null,
+          temporaryDurationDays: isTemp ? Number.parseInt(tempDurationDays, 10) : null,
+          password: isTemp ? (tempPassword || undefined) : permPassword,
         }),
       });
 
+      const payload = await response.json().catch(() => null);
       if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        return setModal({
+        setNotificationModal({
           open: true,
           title: "Error al crear usuario",
-          message: payload?.error || "No se pudo registrar el usuario.",
+          message: payload?.error || "No se pudo completar el registro.",
           error: true,
         });
+        return;
       }
 
-      setModal({
+      setNotificationModal({
         open: true,
-        title: "Usuario creado",
-        message: "El nuevo usuario ha sido registrado exitosamente.",
+        title: "Registro Exitoso",
+        message: "El usuario ha sido guardado correctamente en la base de datos.",
         error: false,
       });
+
+      setTempFullName(""); setTempEmail(""); setTempPhone(""); setTempPassword(""); setTempRoleId(""); setTempDurationDays("7");
+      setPermName(""); setPermLastNameP(""); setPermLastNameM(""); setPermPhone(""); setPermEmail(""); setPermUsername(""); setPermPassword(""); setPermConfirmPassword("");
+      
+      await loadSystemUsers();
     } catch {
-      return setModal({
+      setNotificationModal({
         open: true,
-        title: "Error al crear usuario",
-        message: "Ocurrió un problema de red al registrar el usuario.",
+        title: "Error de red",
+        message: "Hubo un problema de conexión al procesar el alta.",
         error: true,
       });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleModalClose = () => {
-    setModal({ ...modal, open: false });
-    if (!modal.error) router.push("/user");
+  const handleToggleUserStatus = async (userId: number) => {
+    try {
+      await fetch(`/api/guests/${userId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      await loadSystemUsers();
+    } catch (e) {
+      console.error("Failed to toggle status:", e);
+    }
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "var(--color-background)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        paddingTop: "1rem",
-      }}
-    >
+    <div className="page" style={{ minHeight: "100vh", paddingBottom: "60px" }}>
       <HeaderXuchil />
-
-      <div
-        style={{
-          width: "90%",
-          maxWidth: "360px",
-          backgroundColor: "var(--color-background)",
-          padding: "24px",
-          borderRadius: "20px",
-        }}
-      >
-        <h2 style={{ textAlign: "center", marginBottom: "1rem" }}>
-          Crear nuevo usuario
-        </h2>
-
-        {[
-          { label: "Nombre", value: name, set: setName },
-          { label: "Apellido Paterno", value: lastName, set: setLastName },
-          { label: "Apellido Materno", value: secondLastName, set: setSecondLastName },
-          { label: "Teléfono", value: phone, set: setPhone },
-          { label: "Correo", value: email, set: setEmail },
-          { label: "Usuario", value: username, set: setUsername },
-        ].map((field, idx) => (
-          <div key={idx} style={{ marginBottom: "12px" }}>
-            <label>{field.label}:</label>
-            <input
-              type="text"
-              value={field.value}
-              onChange={(e) => field.set(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                borderRadius: "10px",
-                border: "1px solid #333",
-                marginTop: "4px",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-        ))}
-
-        <div style={{ marginBottom: "12px" }}>
-          <label>Contraseña:</label>
-          <input
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "10px",
-              border: "1px solid #333",
-              marginTop: "4px",
-              boxSizing: "border-box",
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            style={{
-              marginTop: "4px",
-              background: "none",
-              color: "var(--color-green-dark)",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "0.9rem",
-              textDecoration: "underline",
-            }}
-          >
-            {showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-          </button>
-        </div>
-
-        <div style={{ marginBottom: "20px" }}>
-          <label>Confirmar Contraseña:</label>
-          <input
-            type={showConfirmPassword ? "text" : "password"}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "10px",
-              border: "1px solid #333",
-              marginTop: "4px",
-              boxSizing: "border-box",
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            style={{
-              marginTop: "4px",
-              background: "none",
-              color: "var(--color-green-dark)",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "0.9rem",
-              textDecoration: "underline",
-            }}
-          >
-            {showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-          </button>
-        </div>
-
-        <Button
-          size="regular"
-          action="primary"
-          onClick={handleCreateUser}
-          style={{ width: "100%", marginBottom: "50px" }}
+      
+      <div style={{ padding: "20px", maxWidth: "480px", margin: "0 auto" }}>
+        
+        <button 
+          onClick={() => router.push("/user")}
+          style={{ background: "none", border: "none", color: "#1C352D", cursor: "pointer", marginBottom: "15px", fontWeight: "bold", fontSize: "0.9rem" }}
         >
-          Crear usuario
-        </Button>
+          ← Volver al Perfil
+        </button>
+
+        <h1 style={{ textAlign: "center", color: "#1C352D", marginBottom: "20px", fontSize: "1.8rem" }}>
+          Administración de Personal
+        </h1>
+
+        <div style={{ display: "flex", gap: "10px", marginBottom: "25px" }}>
+          <button
+            type="button"
+            onClick={() => setUserType("permanente")}
+            style={{
+              flex: 1,
+              padding: "10px",
+              borderRadius: "8px",
+              border: userType === "permanente" ? "2px solid #1C352D" : "1px solid #cbd5e1",
+              backgroundColor: userType === "permanente" ? "#e6f4ea" : "#fff",
+              color: "#1C352D",
+              fontWeight: "bold",
+              cursor: "pointer"
+            }}
+          >
+            Permanente
+          </button>
+          <button
+            type="button"
+            onClick={() => setUserType("temporal")}
+            style={{
+              flex: 1,
+              padding: "10px",
+              borderRadius: "8px",
+              border: userType === "temporal" ? "2px solid #1C352D" : "1px solid #cbd5e1",
+              backgroundColor: userType === "temporal" ? "#e6f4ea" : "#fff",
+              color: "#1C352D",
+              fontWeight: "bold",
+              cursor: "pointer"
+            }}
+          >
+            Temporal
+          </button>
+        </div>
+
+        <form onSubmit={handleRegister} style={{ backgroundColor: "#fff", padding: "20px", borderRadius: "16px", boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", border: "1px solid #e2e8f0" }}>
+          
+          {userType === "permanente" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <h3 style={{ margin: "0 0 10px 0", color: "#1C352D", fontSize: "1.1rem" }}>Crear nuevo usuario</h3>
+              
+              <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>Nombre:</label>
+              <input type="text" value={permName} onChange={(e) => setPermName(e.target.value)} className={styles.guestInput} required />
+              
+              <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>Apellido Paterno:</label>
+              <input type="text" value={permLastNameP} onChange={(e) => setPermLastNameP(e.target.value)} className={styles.guestInput} required />
+              
+              <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>Apellido Materno:</label>
+              <input type="text" value={permLastNameM} onChange={(e) => setPermLastNameM(e.target.value)} className={styles.guestInput} />
+              
+              <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>Teléfono:</label>
+              <input type="text" value={permPhone} onChange={(e) => setPermPhone(e.target.value)} className={styles.guestInput} />
+              
+              <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>Correo:</label>
+              <input type="email" value={permEmail} onChange={(e) => setPermEmail(e.target.value)} className={styles.guestInput} required />
+              
+              <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>Usuario:</label>
+              <input type="text" value={permUsername} onChange={(e) => setPermUsername(e.target.value)} className={styles.guestInput} required />
+              
+              <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>Contraseña:</label>
+              <input type="password" value={permPassword} onChange={(e) => setPermPassword(e.target.value)} className={styles.guestInput} required />
+              
+              <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>Confirmar Contraseña:</label>
+              <input type="password" value={permConfirmPassword} onChange={(e) => setPermConfirmPassword(e.target.value)} className={styles.guestInput} required />
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <h3 style={{ margin: "0 0 10px 0", color: "#1C352D", fontSize: "1.1rem" }}>Nuevo trabajador temporal</h3>
+              
+              <input type="text" placeholder="Nombre completo *" value={tempFullName} onChange={(e) => setTempFullName(e.target.value)} className={styles.guestInput} required />
+              <input type="email" placeholder="Correo electrónico *" value={tempEmail} onChange={(e) => setTempEmail(e.target.value)} className={styles.guestInput} required />
+              <input type="text" placeholder="Teléfono" value={tempPhone} onChange={(e) => setTempPhone(e.target.value)} className={styles.guestInput} />
+              <input type="password" placeholder="Contraseña temporal (opcional)" value={tempPassword} onChange={(e) => setTempPassword(e.target.value)} className={styles.guestInput} />
+              
+              <label style={{ fontSize: "0.8rem", color: "#666", marginBottom: "-6px" }}>Duración en días *</label>
+              <input type="number" min="1" value={tempDurationDays} onChange={(e) => setTempDurationDays(e.target.value)} className={styles.guestInput} required />
+              
+              <label style={{ fontSize: "0.8rem", color: "#666", marginBottom: "-6px" }}>Role ID opcional</label>
+              <input type="number" value={tempRoleId} onChange={(e) => setTempRoleId(e.target.value)} className={styles.guestInput} />
+            </div>
+          )}
+
+          <div style={{ marginTop: "20px" }}>
+            <Button
+              size="regular"
+              action="primary"
+              type="submit"
+              style={{ width: "100%" }}
+            >
+              {loading ? "Procesando..." : userType === "permanente" ? "Crear usuario" : "Crear trabajador temporal"}
+            </Button>
+          </div>
+        </form>
+
+        <div style={{ marginTop: "35px" }}>
+          <h2 style={{ fontSize: "1.2rem", color: "#1C352D", fontWeight: "bold", marginBottom: "15px" }}>
+            Personal Registrado
+          </h2>
+          
+          {usersList && usersList.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {usersList.map((user) => {
+                if (!user) return null;
+                const esEmpleado = user.role !== "temporal";
+                const estaActivo = user.isActive !== false;
+
+                return (
+                  <div
+                    key={user.id || Math.random()}
+                    style={{
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #e2e8f0",
+                      borderLeft: esEmpleado ? "6px solid #1C352D" : "6px solid #d97706",
+                      borderRadius: "12px",
+                      padding: "16px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                      opacity: estaActivo ? 1 : 0.5
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontWeight: "bold", color: "#1C352D", fontSize: "0.95rem", textDecoration: estaActivo ? "none" : "line-through" }}>
+                          {user.displayName || "Usuario sin nombre"}
+                        </span>
+                        <span style={{
+                          fontSize: "10px",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontWeight: "bold",
+                          backgroundColor: esEmpleado ? "#e6f4ea" : "#fef3c7",
+                          color: esEmpleado ? "#1C352D" : "#b45309"
+                        }}>
+                          {esEmpleado ? "Permanente" : "Temporal"}
+                        </span>
+                      </div>
+                      {user.contactInfo && (
+                        <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: "4px" }}>
+                          {user.contactInfo}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleUserStatus(user.id)}
+                      style={{
+                        backgroundColor: "#fee2e2",
+                        color: "#991b1b",
+                        border: "none",
+                        borderRadius: "8px",
+                        padding: "6px 12px",
+                        fontSize: "0.8rem",
+                        fontWeight: "600",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Desactivar
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p style={{ fontSize: "0.9rem", color: "#64748b", textAlign: "center" }}>No hay usuarios registrados</p>
+          )}
+        </div>
+
       </div>
 
       <Modal
-        open={modal.open}
-        title={modal.title}
-        message={modal.message}
+        open={notificationModal.open}
+        title={notificationModal.title}
+        message={notificationModal.message}
         confirmText="Aceptar"
         onlyConfirm
-        onConfirm={handleModalClose}
-        danger={modal.error}
+        onConfirm={() => setNotificationModal((prev) => ({ ...prev, open: false }))}
+        danger={notificationModal.error}
       />
     </div>
   );
 };
 
-export default CreateUser;
+export default CreateUserPage;
