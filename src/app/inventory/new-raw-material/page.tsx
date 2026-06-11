@@ -8,11 +8,11 @@ import TextField from "@/components/TextField";
 import styles from "./NewRawMaterial.module.css";
 
 const unitOptions = [
-  { id: 1, label: "kg" },
-  { id: 2, label: "g" },
-  { id: 3, label: "L" },
-  { id: 4, label: "mL" },
-  { id: 5, label: "unidad" },
+  { id: 1, label: "Kilogramos (kg)" },
+  { id: 2, label: "Gramos (g)" },
+  { id: 3, label: "Litros (L)" },
+  { id: 4, label: "Mililitros (mL)" },
+  { id: 5, label: "Unidades" },
 ];
 
 const NewRawMaterialPage = () => {
@@ -27,38 +27,69 @@ const NewRawMaterialPage = () => {
   const router = useRouter();
 
   const handleSubmit = async () => {
-    setLoading(true);
     setError(null);
 
+    const trimmedCode = code.trim();
+    const trimmedName = name.trim();
+    const trimmedImage = image.trim();
+
+    if (!trimmedCode) {
+      setError("El código es obligatorio.");
+      return;
+    }
+
+    if (!trimmedName) {
+      setError("El nombre es obligatorio.");
+      return;
+    }
+
+    if (stock < 0) {
+      setError("El stock no puede ser negativo.");
+      return;
+    }
+
     const payload = {
-      code: code.trim(),
-      name: name.trim(),
+      code: trimmedCode,
+      name: trimmedName,
       defaultUnitId,
-      imageUrl: image.trim() || null,
+      imageUrl: trimmedImage || null,
       isActive: true,
       initialStock: stock > 0 ? stock : undefined,
-      lotCode: stock > 0 ? `RAW-${code.trim() || name.trim()}-${Date.now()}` : undefined,
+      lotCode: stock > 0 ? `RAW-${trimmedCode}-${Date.now()}` : undefined,
       receivedAt: stock > 0 ? new Date().toISOString() : undefined,
     };
 
     try {
+      setLoading(true);
+
       const response = await fetch("/api/raw-materials", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload),
         credentials: "include",
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        throw new Error(body?.message || "Error creando materia prima");
+
+        throw new Error(
+          body?.message ||
+            body?.error ||
+            "No se pudo registrar la materia prima."
+        );
       }
 
       router.replace("/inventory/raw");
-    } catch (err: any) {
-      setError(err.message || "Error creando materia prima");
+      router.refresh();
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "No se pudo registrar la materia prima.";
+
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -97,12 +128,15 @@ const NewRawMaterialPage = () => {
         />
       </div>
 
-      <h3 className={styles.fieldLabel}>Stock inicial:</h3>
+      <h3 className={styles.fieldLabel}>Stock disponible:</h3>
       <div className={styles.fieldContainer}>
         <TextField
           placeholder="Cantidad"
           value={stock.toString()}
-          onChange={(e) => setStock(Number(e.target.value))}
+          onChange={(e) => {
+            const value = Number(e.target.value);
+            setStock(Number.isNaN(value) ? 0 : value);
+          }}
         />
       </div>
 

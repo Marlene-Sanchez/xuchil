@@ -1,4 +1,4 @@
-import {NextRequest, NextResponse} from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { rawMaterialSchema } from "@/lib/schemas";
 import { z } from "zod";
@@ -11,39 +11,46 @@ import {
 } from "@prisma/client";
 
 const rawMaterialWithStockSchema = rawMaterialSchema.extend({
-  initialStock: z.number().int().nonnegative().optional(),
+  initialStock: z.number().nonnegative().optional(),
   lotCode: z.string().optional(),
   receivedAt: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
   const payload = await verifySession();
+
   if (!payload?.isAdmin) {
     return new NextResponse(null, { status: 403 });
   }
 
   const body = await request.json();
   const result = rawMaterialWithStockSchema.safeParse(body);
+
   if (!result.success) {
     return validationError("raw material", result.error);
   }
 
-  const { initialStock = 0, lotCode, receivedAt, ...rawMaterialData } = result.data;
+  const {
+    initialStock = 0,
+    lotCode,
+    receivedAt,
+    ...rawMaterialData
+  } = result.data;
 
   try {
     const rawMaterial = await prisma.rawMaterial.create({
       data: rawMaterialData,
     });
 
-    if (initialStock > 0 && rawMaterial.defaultUnitId) {
-      const inventoryItem = await prisma.inventoryItem.create({
-        data: {
-          itemType: ItemType.RAW,
-          rawMaterialId: rawMaterial.id,
-          defaultUnitId: rawMaterial.defaultUnitId,
-        },
-      });
+    const inventoryItem = await prisma.inventoryItem.create({
+      data: {
+        itemType: ItemType.RAW,
+        rawMaterialId: rawMaterial.id,
+        defaultUnitId: rawMaterial.defaultUnitId,
+      },
+    });
 
+    if (initialStock > 0 && rawMaterial.defaultUnitId) {
       const lot = await prisma.inventoryLot.create({
         data: {
           inventoryItemId: inventoryItem.id,
