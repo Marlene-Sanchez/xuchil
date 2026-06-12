@@ -18,6 +18,7 @@ const CreateUserPage = () => {
   const router = useRouter();
   const [userType, setUserType] = useState<"permanente" | "temporal">("permanente");
   const [loading, setLoading] = useState(false);
+  
   const [usersList, setUsersList] = useState<SystemUser[]>([
     {
       id: 101,
@@ -62,39 +63,107 @@ const CreateUserPage = () => {
     loadSystemUsers();
   }, []);
 
-  const loadSystemUsers = async () => {
+const loadSystemUsers = async () => {
     try {
-      const res = await fetch("/api/guests", { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0) {
-          setUsersList(data);
+      const [resPermanentes, resTemporales] = await Promise.all([
+        fetch("/api/users", { credentials: "include" }),
+        fetch("/api/guests", { credentials: "include" })
+      ]);
+
+      let permanentesUnificados: SystemUser[] = [];
+      let temporalesUnificados: SystemUser[] = [];
+
+      if (resPermanentes.ok) {
+        const dataPerm = await resPermanentes.json();
+        if (dataPerm && dataPerm.length > 0) {
+          permanentesUnificados = dataPerm.map((user: any) => {
+            const esTemporalReal = user.worker?.expiresAt || user.expiresAt || user.role === "temporal";
+            
+            return {
+              id: user.id,
+              displayName: user.worker?.fullName || user.fullName || "Empleado sin nombre",
+              contactInfo: user.email || (user.worker?.phone ? `Tel: ${user.worker.phone}` : null),
+              role: esTemporalReal ? "temporal" : "empleado",
+              isActive: user.isActive ?? user.worker?.isActive ?? true
+            };
+          });
         }
       }
+
+      if (resTemporales.ok) {
+        const dataTemp = await resTemporales.json();
+        if (dataTemp && dataTemp.length > 0) {
+          temporalesUnificados = dataTemp.map((guest: any) => ({
+            id: guest.id,
+            displayName: guest.displayName || "Invitado sin nombre",
+            contactInfo: guest.contactInfo ? `Contacto: ${guest.contactInfo}` : null,
+            role: "temporal", 
+            isActive: guest.isActive ?? true
+          }));
+        }
+      }
+
+      const listaCombinada = [...permanentesUnificados, ...temporalesUnificados];
+      
+      if (listaCombinada.length === 0) {
+        setUsersList([
+          {
+            id: 101,
+            displayName: "Alejandro Ruiz",
+            contactInfo: "alejandro.ruiz@xuchil.com",
+            role: "empleado",
+            isActive: true,
+          },
+          {
+            id: 102,
+            displayName: "Sofía Hernández (Marlene Design)",
+            contactInfo: "951-123-4567",
+            role: "temporal",
+            isActive: true,
+          }
+        ]);
+      } else {
+        setUsersList(listaCombinada);
+      }
+
     } catch (e) {
-      console.error("Failed to load users:", e);
+      console.error("Error al unificar usuarios en frontend:", e);
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
       const isTemp = userType === "temporal";
-      const response = await fetch("/api/users", {
+      const endpoint = "/api/users";
+      const bodyPayload = isTemp
+        ? {
+            fullName: tempFullName.trim(),
+            phone: tempPhone.trim() || null,
+            email: tempEmail.trim(),
+            profilePhotoUrl: null,
+            roleId: tempRoleId.trim() ? Number.parseInt(tempRoleId, 10) : null,
+            temporaryDurationDays: Number.parseInt(tempDurationDays, 10) || 7,
+            password: tempPassword || undefined,
+          }
+        : {
+            fullName: `${permName.trim()} ${permLastNameP.trim()} ${permLastNameM.trim()}`.trim(),
+            phone: permPhone.trim() || null,
+            email: permEmail.trim(),
+            username: permUsername.trim(),
+            password: permPassword,
+            profilePhotoUrl: null,
+            roleId: null,
+            temporaryDurationDays: null,
+          };
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          fullName: isTemp ? tempFullName.trim() : `${permName.trim()} ${permLastNameP.trim()} ${permLastNameM.trim()}`.trim(),
-          phone: isTemp ? (tempPhone.trim() || null) : (permPhone.trim() || null),
-          email: isTemp ? tempEmail.trim() : permEmail.trim(),
-          profilePhotoUrl: null,
-          roleId: isTemp ? (tempRoleId.trim() ? Number.parseInt(tempRoleId, 10) : null) : null,
-          temporaryDurationDays: isTemp ? Number.parseInt(tempDurationDays, 10) : null,
-          password: isTemp ? (tempPassword || undefined) : permPassword,
-        }),
+        body: JSON.stringify(bodyPayload),
       });
 
       const payload = await response.json().catch(() => null);
@@ -102,7 +171,7 @@ const CreateUserPage = () => {
         setNotificationModal({
           open: true,
           title: "Error al crear usuario",
-          message: payload?.error || "No se pudo completar el registro.",
+          message: payload?.error || payload?.detail || "No se pudo completar el registro.",
           error: true,
         });
         return;
@@ -111,10 +180,11 @@ const CreateUserPage = () => {
       setNotificationModal({
         open: true,
         title: "Registro Exitoso",
-        message: "El usuario ha sido guardado correctamente en la base de datos.",
+        message: isTemp 
+          ? `Usuario temporal creado. Vence el: ${payload?.expiresAt ? new Date(payload.expiresAt).toLocaleDateString("es-MX") : "la fecha asignada"}`
+          : "El usuario permanente ha sido guardado correctamente.",
         error: false,
       });
-
       setTempFullName(""); setTempEmail(""); setTempPhone(""); setTempPassword(""); setTempRoleId(""); setTempDurationDays("7");
       setPermName(""); setPermLastNameP(""); setPermLastNameM(""); setPermPhone(""); setPermEmail(""); setPermUsername(""); setPermPassword(""); setPermConfirmPassword("");
       
