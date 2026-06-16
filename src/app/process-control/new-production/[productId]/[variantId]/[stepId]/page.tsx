@@ -136,10 +136,21 @@ const ProcessStepPage = () => {
             setStepExecutionId(stepExec.id);
             setStepStatus(stepExec.status);
 
-            // If step was already started, calculate elapsed time
+            // If step was already started, calculate elapsed working time
+            // (wall clock minus any paused intervals overlapping the step).
             if (stepExec.startedAt && (stepExec.status === "IN_PROGRESS" || stepExec.status === "BLOCKED")) {
-              const elapsed = Math.floor((Date.now() - new Date(stepExec.startedAt).getTime()) / 1000);
-              setInitialTime(Math.max(0, elapsed));
+              const startedMs = new Date(stepExec.startedAt).getTime();
+              const nowMs = Date.now();
+              let pausedMs = 0;
+              for (const pause of activeRun.processPauses || []) {
+                const ps = new Date(pause.startedAt).getTime();
+                const pe = pause.endedAt ? new Date(pause.endedAt).getTime() : nowMs;
+                const overlapStart = Math.max(startedMs, ps);
+                const overlapEnd = Math.min(nowMs, pe);
+                if (overlapEnd > overlapStart) pausedMs += overlapEnd - overlapStart;
+              }
+              const elapsed = Math.max(0, Math.floor((nowMs - startedMs - pausedMs) / 1000));
+              setInitialTime(elapsed);
               setHasStarted(true);
             }
           }

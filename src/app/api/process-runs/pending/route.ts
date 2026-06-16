@@ -25,6 +25,7 @@ export async function GET() {
         materialReservations: {
           include: { rawMaterial: true, unit: true },
         },
+        processPauses: true,
       },
       orderBy: { startedAt: "desc" },
     });
