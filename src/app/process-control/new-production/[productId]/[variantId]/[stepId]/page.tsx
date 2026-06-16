@@ -265,26 +265,29 @@ const ProcessStepPage = () => {
         throw new Error(err.error || "No se pudo apartar la materia prima.");
       }
 
-      setProcessRunId(newRun.id);
-      setRunHasReservations(true);
-
-      // Start the current (first) step, consuming its reserved materials.
+      // Start the current (first) step BEFORE switching the view, so the
+      // reservation panel stays until the step truly starts (no flicker).
       const orderedExecs = newRun.stepExecutions || [];
       const stepExec = orderedExecs[stepIndex];
-      if (stepExec) {
-        stepExecIdRef.current = stepExec.id;
-        setStepExecutionId(stepExec.id);
-        const body = currentStep
-          ? consumeBody(currentStep, reserveStepQty(currentStep))
-          : undefined;
-        const result = await callStepActionDirect(stepExec.id, "start", body);
-        if (result.ok) {
-          setStepStatus("IN_PROGRESS");
-          setHasStarted(true);
-        } else {
-          throw new Error(result.error);
-        }
+      if (!stepExec) {
+        throw new Error("No se encontró el paso a iniciar.");
       }
+      const body = currentStep
+        ? consumeBody(currentStep, reserveStepQty(currentStep))
+        : undefined;
+      const result = await callStepActionDirect(stepExec.id, "start", body);
+      if (!result.ok) {
+        throw new Error(result.error);
+      }
+
+      // Everything succeeded: switch straight to the running chronometer.
+      stepExecIdRef.current = stepExec.id;
+      setProcessRunId(newRun.id);
+      setRunHasReservations(true);
+      setStepExecutionId(stepExec.id);
+      setStepStatus("IN_PROGRESS");
+      setInitialTime(0);
+      setHasStarted(true);
     } catch (e) {
       setPanelError(e instanceof Error ? e.message : "Error al apartar la materia prima.");
     } finally {
