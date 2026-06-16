@@ -184,6 +184,7 @@ const NewProcessPage = () => {
     try {
       const res = await fetch(`/api/products/next-sku?category_id=${newCategoryId}`, {
         credentials: "include",
+        cache: "no-store",
       });
       if (!res.ok) throw new Error("No se pudo generar el SKU.");
       const data = await res.json();

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { idError, notFoundError, serverError } from "@/utils/responses";
 
+export const dynamic = "force-dynamic";
+
 const PAD = 3;
 
 // Builds a 3-letter prefix from the category name (letters only, uppercased).
@@ -33,7 +35,7 @@ export async function GET(request: NextRequest) {
       select: { sku: true },
     });
 
-    const pattern = new RegExp(`^${prefix}(\\d+)$`);
+    const pattern = new RegExp(`^${prefix}(\\d+)$`, "i");
     let maxSequence = 0;
     for (const { sku } of products) {
       const match = sku.match(pattern);
@@ -49,7 +51,10 @@ export async function GET(request: NextRequest) {
     const sku = `${prefix}${String(nextSequence).padStart(PAD, "0")}`;
     const convention = `3 letras de la categoria ("${prefix}") seguidas de un consecutivo de ${PAD} digitos: ${prefix}001, ${prefix}002, ...`;
 
-    return NextResponse.json({ sku, nextSequence, convention });
+    return NextResponse.json(
+      { sku, nextSequence, convention },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error) {
     return serverError("product sku", "generate", error);
   }

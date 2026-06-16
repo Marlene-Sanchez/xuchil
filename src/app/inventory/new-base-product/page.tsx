@@ -65,6 +65,7 @@ const NewBaseProductPage = () => {
       setGeneratingSku(true);
       const response = await fetch(`/api/products/next-sku?category_id=${categoryId}`, {
         credentials: "include",
+        cache: "no-store",
       });
       if (!response.ok) {
         throw new Error("No se pudo generar el SKU.");

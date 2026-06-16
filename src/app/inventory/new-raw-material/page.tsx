@@ -34,6 +34,7 @@ const NewRawMaterialPage = () => {
       setGeneratingCode(true);
       const response = await fetch("/api/raw-materials/next-code", {
         credentials: "include",
+        cache: "no-store",
       });
       if (!response.ok) {
         throw new Error("No se pudo generar el código.");
