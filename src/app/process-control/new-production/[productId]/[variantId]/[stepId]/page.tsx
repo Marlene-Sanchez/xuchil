@@ -5,7 +5,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import HeaderXuchil from "@/components/HeaderXuchil";
 import Chronometer from "@/components/Chronometer";
 import BottomButton from "@/components/BottomButton";
-import UnitField from "@/components/UnitField";
 import styles from "./ProcessStep.module.css";
 import { ProcessStep } from "@/types/ProcessStep";
 import { ProductVariant } from "@/types/ProductVariant";
@@ -19,7 +18,6 @@ const ProcessStepPage = () => {
   const [currentStep, setCurrentStep] = useState<ProcessStep | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
-  const [quantity, setQuantity] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // API-linked state
@@ -47,7 +45,10 @@ const ProcessStepPage = () => {
       const stepPosition = parseInt((stepId as string) || "1", 10);
       const positionIndex = stepPosition - 1; // convert to 0-based
 
-      const variantRes = await fetch(`/api/product-variants?category_id=${productId}`, { credentials: "include" });
+      // Look the variant up by its own id, regardless of what the productId
+      // route segment means (category id from new-production, product id from
+      // the dashboard resume links).
+      const variantRes = await fetch(`/api/product-variants`, { credentials: "include" });
       if (!variantRes.ok) {
         if (mounted) setLoadError("No se pudieron cargar las variantes del producto.");
         return;
@@ -238,7 +239,7 @@ const ProcessStepPage = () => {
     return materials.length ? { materials } : undefined;
   };
 
-  const handleReserveAndStart = async () => {
+  const handleReserve = async () => {
     if (!templateId) return;
     setPanelError(null);
     setReserving(true);
@@ -253,6 +254,7 @@ const ProcessStepPage = () => {
       if (!runRes.ok) throw new Error("No se pudo crear el proceso.");
       const newRun = await runRes.json();
 
+      // Reserve materials for EVERY step up front (not just the first one).
       const items: Array<{ templateStepId: number; rawMaterialId: number; qty: number; unitId: number }> = [];
       for (const s of steps) {
         for (const m of s.materials ?? []) {
@@ -261,44 +263,35 @@ const ProcessStepPage = () => {
         }
       }
 
-      const reserveRes = await fetch(`/api/process-runs/${newRun.id}/reserve`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items }),
-      });
-      if (!reserveRes.ok) {
-        const err = await reserveRes.json().catch(() => ({}));
-        if (reserveRes.status === 409 && Array.isArray(err.insufficient)) {
-          const names = err.insufficient.map((i: any) => i.name).join(", ");
-          throw new Error(`Materia prima insuficiente: ${names}.`);
+      if (items.length > 0) {
+        const reserveRes = await fetch(`/api/process-runs/${newRun.id}/reserve`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items }),
+        });
+        if (!reserveRes.ok) {
+          const err = await reserveRes.json().catch(() => ({}));
+          if (reserveRes.status === 409 && Array.isArray(err.insufficient)) {
+            const names = err.insufficient.map((i: any) => i.name).join(", ");
+            throw new Error(`Materia prima insuficiente: ${names}.`);
+          }
+          throw new Error(err.error || "No se pudo apartar la materia prima.");
         }
-        throw new Error(err.error || "No se pudo apartar la materia prima.");
       }
 
-      // Start the current (first) step BEFORE switching the view, so the
-      // reservation panel stays until the step truly starts (no flicker).
+      // Run created and everything reserved. Leave the first step PENDING; the
+      // user starts it manually with INICIAR (consuming only that step then).
       const orderedExecs = newRun.stepExecutions || [];
       const stepExec = orderedExecs[stepIndex];
-      if (!stepExec) {
-        throw new Error("No se encontró el paso a iniciar.");
+      if (stepExec) {
+        stepExecIdRef.current = stepExec.id;
+        setStepExecutionId(stepExec.id);
       }
-      const body = currentStep
-        ? consumeBody(currentStep, reserveStepQty(currentStep))
-        : undefined;
-      const result = await callStepActionDirect(stepExec.id, "start", body);
-      if (!result.ok) {
-        throw new Error(result.error);
-      }
-
-      // Everything succeeded: switch straight to the running chronometer.
-      stepExecIdRef.current = stepExec.id;
       setProcessRunId(newRun.id);
       setRunHasReservations(true);
-      setStepExecutionId(stepExec.id);
-      setStepStatus("IN_PROGRESS");
-      setInitialTime(0);
-      setHasStarted(true);
+      setStepStatus("PENDING");
+      if (currentStep) setConsumeQty(reserveStepQty(currentStep));
     } catch (e) {
       setPanelError(e instanceof Error ? e.message : "Error al apartar la materia prima.");
     } finally {
@@ -442,22 +435,14 @@ const ProcessStepPage = () => {
             <button
               type="button"
               className={styles.reserveButton}
-              onClick={handleReserveAndStart}
+              onClick={handleReserve}
               disabled={reserving}
             >
-              {reserving ? "Apartando..." : "Apartar e iniciar proceso"}
+              {reserving ? "Apartando..." : "Apartar materia prima"}
             </button>
           </div>
         ) : (
           <>
-            {!hasStarted && currentStep.hasInput && (
-              <UnitField
-                value={quantity}
-                onChange={setQuantity}
-                unit="Kg"
-              />
-            )}
-
             {!hasStarted && stepStatus === "PENDING" && currentStepHasMaterials && (
               <div className={styles.panel}>
                 <h3 className={styles.panelTitle}>Materia prima a usar en este paso</h3>
