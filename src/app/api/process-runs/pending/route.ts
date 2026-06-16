@@ -22,6 +22,9 @@ export async function GET() {
           },
           orderBy: { id: "asc" },
         },
+        materialReservations: {
+          include: { rawMaterial: true, unit: true },
+        },
       },
       orderBy: { startedAt: "desc" },
     });
