@@ -9,6 +9,7 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const productIdRaw = searchParams.get("product_id");
+    const categoryIdRaw = searchParams.get("category_id");
 
     const where: any = { isActive: true };
     if (productIdRaw) {

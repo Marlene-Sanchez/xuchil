@@ -47,7 +47,7 @@ const ProcessStepPage = () => {
       const stepPosition = parseInt((stepId as string) || "1", 10);
       const positionIndex = stepPosition - 1; // convert to 0-based
 
-      const variantRes = await fetch(`/api/product-variants?product_id=${productId}`, { credentials: "include" });
+      const variantRes = await fetch(`/api/product-variants?category_id=${productId}`, { credentials: "include" });
       if (!variantRes.ok) {
         if (mounted) setLoadError("No se pudieron cargar las variantes del producto.");
         return;
