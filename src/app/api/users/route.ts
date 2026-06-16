@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import {serverError} from "@/utils/responses";
+import { serverError } from "@/utils/responses";
 import bcrypt from "bcrypt";
-import {verifySession} from "@/lib/session";
-import {randomBytes} from "crypto";
+import { verifySession } from "@/lib/session";
+import { randomBytes } from "crypto";
 
 const TEMPORARY_PASSWORD_BYTES = 12;
 
@@ -24,13 +24,11 @@ export async function GET() {
 
     return NextResponse.json(users);
   } catch {
-    return serverError('user', 'fetch', null)
+    return serverError('user', 'fetch', null);
   }
 }
 
-export async function POST(
-  req: NextRequest,
-) {
+export async function POST(req: NextRequest) {
   const payload = await verifySession();
   if (!payload?.isAdmin) {
     return new NextResponse(null, { status: 403 });
@@ -45,15 +43,9 @@ export async function POST(
       roleId,
       password,
       temporaryDurationDays,
-      expiresAt,
     } = body;
 
-    const parsedTemporaryDurationDays =
-      typeof temporaryDurationDays === "string"
-        ? Number.parseInt(temporaryDurationDays, 10)
-        : temporaryDurationDays;
-
-    const isTemporary = Number.isInteger(parsedTemporaryDurationDays) && parsedTemporaryDurationDays > 0;
+    const isTemporary = Number.isInteger(temporaryDurationDays) && temporaryDurationDays > 0;
     const finalPassword = password || (isTemporary ? generateTemporaryPassword() : null);
 
     if (!finalPassword) {
@@ -63,18 +55,9 @@ export async function POST(
       );
     }
 
-    const temporaryExpiresAt = isTemporary
-      ? new Date(Date.now() + parsedTemporaryDurationDays * 24 * 60 * 60 * 1000)
+    const finalExpiresAt = isTemporary
+      ? new Date(Date.now() + temporaryDurationDays * 24 * 60 * 60 * 1000)
       : null;
-    const explicitExpiresAt = expiresAt ? new Date(expiresAt) : null;
-    const finalExpiresAt = temporaryExpiresAt ?? explicitExpiresAt;
-
-    if (finalExpiresAt && Number.isNaN(finalExpiresAt.getTime())) {
-      return NextResponse.json(
-        { error: "expiresAt is invalid" },
-        { status: 400 }
-      );
-    }
 
     const user = await prisma.authUser.create({
       data: {
@@ -83,7 +66,7 @@ export async function POST(
         worker: {
           create: {
             fullName,
-            roleId,
+            roleId: roleId ? Number.parseInt(roleId, 10) : null,
             phone,
             profilePhotoUrl,
             expiresAt: finalExpiresAt,
@@ -98,8 +81,9 @@ export async function POST(
       ...user,
       temporaryPassword: isTemporary ? finalPassword : null,
       expiresAt: finalExpiresAt,
-    }, {status: 201});
-  } catch {
-    return serverError('user', 'create', null)
+    }, { status: 201 });
+  } catch (error) {
+    console.error(error);
+    return serverError('user', 'create', null);
   }
 }

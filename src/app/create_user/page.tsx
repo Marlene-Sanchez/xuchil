@@ -43,12 +43,12 @@ const CreateUserPage = () => {
   const [tempDurationDays, setTempDurationDays] = useState("7");
   const [tempRoleId, setTempRoleId] = useState("");
 
+
   const [permName, setPermName] = useState("");
   const [permLastNameP, setPermLastNameP] = useState("");
   const [permLastNameM, setPermLastNameM] = useState("");
   const [permPhone, setPermPhone] = useState("");
   const [permEmail, setPermEmail] = useState("");
-  const [permUsername, setPermUsername] = useState("");
   const [permPassword, setPermPassword] = useState("");
   const [permConfirmPassword, setPermConfirmPassword] = useState("");
 
@@ -63,103 +63,69 @@ const CreateUserPage = () => {
     loadSystemUsers();
   }, []);
 
-const loadSystemUsers = async () => {
+ const loadSystemUsers = async () => {
     try {
-      const [resPermanentes, resTemporales] = await Promise.all([
-        fetch("/api/users", { credentials: "include" }),
-        fetch("/api/guests", { credentials: "include" })
-      ]);
+      const response = await fetch("/api/users", { credentials: "include" });
 
-      let permanentesUnificados: SystemUser[] = [];
-      let temporalesUnificados: SystemUser[] = [];
-
-      if (resPermanentes.ok) {
-        const dataPerm = await resPermanentes.json();
-        if (dataPerm && dataPerm.length > 0) {
-          permanentesUnificados = dataPerm.map((user: any) => {
-            const esTemporalReal = user.worker?.expiresAt || user.expiresAt || user.role === "temporal";
+      if (response.ok) {
+        const dataAuthUsers = await response.json();
+        
+        if (dataAuthUsers && dataAuthUsers.length > 0) {
+          const usuariosMapeados = dataAuthUsers.map((user: any) => {
+            const nombreReal = user.worker?.fullName || user.fullName || "Trabajador sin nombre";
+            const contactoReal = user.email || (user.worker?.phone ? `Tel: ${user.worker.phone}` : "Sin contacto");
             
+            const esTemporal = user.worker?.roleId === null || user.role === "temporal";
+
             return {
-              id: user.id,
-              displayName: user.worker?.fullName || user.fullName || "Empleado sin nombre",
-              contactInfo: user.email || (user.worker?.phone ? `Tel: ${user.worker.phone}` : null),
-              role: esTemporalReal ? "temporal" : "empleado",
+              id: user.id, 
+              displayName: nombreReal,
+              contactInfo: contactoReal,
+              role: esTemporal ? "temporal" : "empleado",
               isActive: user.isActive ?? user.worker?.isActive ?? true
             };
           });
+
+          setUsersList(usuariosMapeados);
+          return;
         }
       }
 
-      if (resTemporales.ok) {
-        const dataTemp = await resTemporales.json();
-        if (dataTemp && dataTemp.length > 0) {
-          temporalesUnificados = dataTemp.map((guest: any) => ({
-            id: guest.id,
-            displayName: guest.displayName || "Invitado sin nombre",
-            contactInfo: guest.contactInfo ? `Contacto: ${guest.contactInfo}` : null,
-            role: "temporal", 
-            isActive: guest.isActive ?? true
-          }));
-        }
-      }
-
-      const listaCombinada = [...permanentesUnificados, ...temporalesUnificados];
-      
-      if (listaCombinada.length === 0) {
-        setUsersList([
-          {
-            id: 101,
-            displayName: "Alejandro Ruiz",
-            contactInfo: "alejandro.ruiz@xuchil.com",
-            role: "empleado",
-            isActive: true,
-          },
-          {
-            id: 102,
-            displayName: "Sofía Hernández (Marlene Design)",
-            contactInfo: "951-123-4567",
-            role: "temporal",
-            isActive: true,
-          }
-        ]);
-      } else {
-        setUsersList(listaCombinada);
-      }
-
+      setUsersList([
+        { id: 101, displayName: "Alejandro Ruiz (Mock)", contactInfo: "alejandro.ruiz@xuchil.com", role: "empleado", isActive: true },
+        { id: 102, displayName: "Sofía Hernández (Mock)", contactInfo: "951-123-4567", role: "temporal", isActive: true }
+      ]);
     } catch (e) {
-      console.error("Error al unificar usuarios en frontend:", e);
+      console.error("Error al mapear con la estructura AuthUser:", e);
     }
   };
 
-const handleRegister = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
       const isTemp = userType === "temporal";
-      const endpoint = "/api/users";
+      
       const bodyPayload = isTemp
         ? {
             fullName: tempFullName.trim(),
             phone: tempPhone.trim() || null,
             email: tempEmail.trim(),
-            profilePhotoUrl: null,
-            roleId: tempRoleId.trim() ? Number.parseInt(tempRoleId, 10) : null,
-            temporaryDurationDays: Number.parseInt(tempDurationDays, 10) || 7,
             password: tempPassword || undefined,
+            temporaryDurationDays: Number.parseInt(tempDurationDays, 10) || 7,
+            roleId: null
           }
         : {
             fullName: `${permName.trim()} ${permLastNameP.trim()} ${permLastNameM.trim()}`.trim(),
             phone: permPhone.trim() || null,
             email: permEmail.trim(),
-            username: permUsername.trim(),
             password: permPassword,
-            profilePhotoUrl: null,
-            roleId: null,
             temporaryDurationDays: null,
+            roleId: 1 // Rol permanente
           };
 
-      const response = await fetch(endpoint, {
+      const response = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -171,7 +137,7 @@ const handleRegister = async (e: React.FormEvent) => {
         setNotificationModal({
           open: true,
           title: "Error al crear usuario",
-          message: payload?.error || payload?.detail || "No se pudo completar el registro.",
+          message: payload?.error || "No se pudo completar el registro.",
           error: true,
         });
         return;
@@ -180,22 +146,17 @@ const handleRegister = async (e: React.FormEvent) => {
       setNotificationModal({
         open: true,
         title: "Registro Exitoso",
-        message: isTemp 
-          ? `Usuario temporal creado. Vence el: ${payload?.expiresAt ? new Date(payload.expiresAt).toLocaleDateString("es-MX") : "la fecha asignada"}`
-          : "El usuario permanente ha sido guardado correctamente.",
+        message: "El usuario y su perfil de trabajador se crearon correctamente.",
         error: false,
       });
+
+
       setTempFullName(""); setTempEmail(""); setTempPhone(""); setTempPassword(""); setTempRoleId(""); setTempDurationDays("7");
-      setPermName(""); setPermLastNameP(""); setPermLastNameM(""); setPermPhone(""); setPermEmail(""); setPermUsername(""); setPermPassword(""); setPermConfirmPassword("");
+      setPermName(""); setPermLastNameP(""); setPermLastNameM(""); setPermPhone(""); setPermEmail(""); setPermPassword(""); setPermConfirmPassword("");
       
       await loadSystemUsers();
     } catch {
-      setNotificationModal({
-        open: true,
-        title: "Error de red",
-        message: "Hubo un problema de conexión al procesar el alta.",
-        error: true,
-      });
+      setNotificationModal({ open: true, title: "Error de red", message: "Hubo un problema de conexión.", error: true });
     } finally {
       setLoading(false);
     }
@@ -203,10 +164,29 @@ const handleRegister = async (e: React.FormEvent) => {
 
   const handleToggleUserStatus = async (userId: number) => {
     try {
-      await fetch(`/api/guests/${userId}`, {
+      const response = await fetch(`/api/users/${userId}`, {
         method: "DELETE",
         credentials: "include",
       });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        setNotificationModal({
+          open: true,
+          title: "No se pudo desactivar",
+          message: payload?.error || "El servidor rechazó el cambio de estado.",
+          error: true,
+        });
+        return;
+      }
+
+      setNotificationModal({
+        open: true,
+        title: "Estado Actualizado",
+        message: "El usuario ha sido desactivado con éxito.",
+        error: false,
+      });
+
       await loadSystemUsers();
     } catch (e) {
       console.error("Failed to toggle status:", e);
@@ -286,9 +266,6 @@ const handleRegister = async (e: React.FormEvent) => {
               <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>Correo:</label>
               <input type="email" value={permEmail} onChange={(e) => setPermEmail(e.target.value)} className={styles.guestInput} required />
               
-              <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>Usuario:</label>
-              <input type="text" value={permUsername} onChange={(e) => setPermUsername(e.target.value)} className={styles.guestInput} required />
-              
               <label style={{ fontSize: "0.85rem", fontWeight: "600" }}>Contraseña:</label>
               <input type="password" value={permPassword} onChange={(e) => setPermPassword(e.target.value)} className={styles.guestInput} required />
               
@@ -349,13 +326,19 @@ const handleRegister = async (e: React.FormEvent) => {
                       justifyContent: "space-between",
                       alignItems: "center",
                       boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
-                      opacity: estaActivo ? 1 : 0.5
+                      opacity: estaActivo ? 1 : 0.4,
+                      transition: "opacity 0.2s ease"
                     }}
                   >
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ fontWeight: "bold", color: "#1C352D", fontSize: "0.95rem", textDecoration: estaActivo ? "none" : "line-through" }}>
-                          {user.displayName || "Usuario sin nombre"}
+                        <span style={{ 
+                          fontWeight: "bold", 
+                          color: "#1C352D", 
+                          fontSize: "0.95rem", 
+                          textDecoration: estaActivo ? "none" : "line-through" 
+                        }}>
+                          {user.displayName}
                         </span>
                         <span style={{
                           fontSize: "10px",
@@ -367,6 +350,11 @@ const handleRegister = async (e: React.FormEvent) => {
                         }}>
                           {esEmpleado ? "Permanente" : "Temporal"}
                         </span>
+                        {!estaActivo && (
+                          <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", fontWeight: "bold", backgroundColor: "#fee2e2", color: "#991b1b" }}>
+                            Inactivo
+                          </span>
+                        )}
                       </div>
                       {user.contactInfo && (
                         <div style={{ fontSize: "0.85rem", color: "#64748b", marginTop: "4px" }}>
@@ -378,18 +366,19 @@ const handleRegister = async (e: React.FormEvent) => {
                     <button
                       type="button"
                       onClick={() => handleToggleUserStatus(user.id)}
+                      disabled={!estaActivo}
                       style={{
-                        backgroundColor: "#fee2e2",
-                        color: "#991b1b",
+                        backgroundColor: estaActivo ? "#fee2e2" : "#cbd5e1",
+                        color: estaActivo ? "#991b1b" : "#64748b",
                         border: "none",
                         borderRadius: "8px",
                         padding: "6px 12px",
                         fontSize: "0.8rem",
                         fontWeight: "600",
-                        cursor: "pointer"
+                        cursor: estaActivo ? "pointer" : "not-allowed"
                       }}
                     >
-                      Desactivar
+                      {estaActivo ? "Desactivar" : "Desactivado"}
                     </button>
                   </div>
                 );
