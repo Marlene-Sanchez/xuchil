@@ -523,7 +523,7 @@ const NewProcessPage = () => {
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
               <h2>Pasos del Proceso</h2>
-              <Button type="button" onClick={addStep} action="secondary">
+              <Button type="button" onClick={addStep} action="secondary" size="small">
                 + Agregar Paso
               </Button>
             </div>
@@ -596,25 +596,12 @@ const NewProcessPage = () => {
                       Requiere entrada de datos
                     </label>
                   </div>
-
-                  {step.hasInput && (
-                    <div className={styles.inputGroup}>
-                      <label className={styles.label}>Unidad de medida</label>
-                      <input
-                        type="text"
-                        className={styles.input}
-                        value={step.unit || ""}
-                        onChange={(e) => updateStep(step.id, "unit", e.target.value)}
-                        placeholder="Ej: kg, L, unidades"
-                      />
-                    </div>
-                  )}
                 </div>
 
                 {/* Materias primas del paso */}
                 <div className={styles.sectionHeader}>
                   <label className={styles.label}>Materias primas de este paso</label>
-                  <Button type="button" onClick={() => addMaterial(step.id)} action="secondary">
+                  <Button type="button" onClick={() => addMaterial(step.id)} action="secondary" size="small">
                     + Agregar Materia Prima
                   </Button>
                 </div>
