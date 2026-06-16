@@ -17,6 +17,12 @@ export async function GET(request: NextRequest) {
         where.productId = productId;
       }
     }
+    if (categoryIdRaw) {
+      const categoryId = parseInt(categoryIdRaw, 10);
+      if (!Number.isNaN(categoryId)) {
+        where.product = { categoryId };
+      }
+    }
 
     const variants = await prisma.productVariant.findMany({
       where,
@@ -59,15 +65,17 @@ export async function POST(request: NextRequest) {
       data: productVariantData,
     });
 
-    if (initialStock > 0 && productVariantData.defaultUnitId) {
-      const inventoryItem = await prisma.inventoryItem.create({
-        data: {
-          itemType: ItemType.PRODUCT,
-          productVariantId: variant.id,
-          defaultUnitId: productVariantData.defaultUnitId,
-        },
-      });
+    // Always create the inventory item so the variant shows up in inventory,
+    // even with zero stock (stock can be added later via restock).
+    const inventoryItem = await prisma.inventoryItem.create({
+      data: {
+        itemType: ItemType.PRODUCT,
+        productVariantId: variant.id,
+        defaultUnitId: productVariantData.defaultUnitId ?? null,
+      },
+    });
 
+    if (initialStock > 0 && productVariantData.defaultUnitId) {
       const lot = await prisma.inventoryLot.create({
         data: {
           inventoryItemId: inventoryItem.id,
