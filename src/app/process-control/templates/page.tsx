@@ -45,6 +45,17 @@ const TemplatesPage = () => {
     const [newTplVariantId, setNewTplVariantId] = useState("");
     const [newTplName, setNewTplName] = useState("");
 
+    // Inline product + variant creation
+    const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([]);
+    const [showCreateProduct, setShowCreateProduct] = useState(false);
+    const [newCategoryId, setNewCategoryId] = useState("");
+    const [newProductName, setNewProductName] = useState("");
+    const [newProductSku, setNewProductSku] = useState("");
+    const [newVariantName, setNewVariantName] = useState("");
+    const [skuHint, setSkuHint] = useState<string | null>(null);
+    const [creatingProduct, setCreatingProduct] = useState(false);
+    const [createProductError, setCreateProductError] = useState<string | null>(null);
+
     // New step form
     const [newStepName, setNewStepName] = useState("");
     const [newStepDuration, setNewStepDuration] = useState("");
@@ -84,10 +95,92 @@ const TemplatesPage = () => {
         }
     }, []);
 
+    const loadCategories = useCallback(async () => {
+        const res = await fetch("/api/product-categories", { credentials: "include" });
+        if (res.ok) {
+            setCategories(await res.json());
+        }
+    }, []);
+
     useEffect(() => {
         loadTemplates();
         loadVariants();
-    }, [loadTemplates, loadVariants]);
+        loadCategories();
+    }, [loadTemplates, loadVariants, loadCategories]);
+
+    const handleGenerateSku = async () => {
+        setCreateProductError(null);
+        if (!newCategoryId) {
+            setCreateProductError("Selecciona primero una categoría para generar el SKU.");
+            return;
+        }
+        try {
+            const res = await fetch(`/api/products/next-sku?category_id=${newCategoryId}`, {
+                credentials: "include",
+                cache: "no-store",
+            });
+            if (!res.ok) throw new Error("No se pudo generar el SKU.");
+            const data = await res.json();
+            setNewProductSku(data.sku);
+            setSkuHint(data.convention);
+        } catch (err) {
+            setCreateProductError(err instanceof Error ? err.message : "No se pudo generar el SKU.");
+        }
+    };
+
+    const handleCreateProductAndVariant = async () => {
+        setCreateProductError(null);
+        if (!newCategoryId) return setCreateProductError("La categoría es obligatoria.");
+        if (!newProductName.trim()) return setCreateProductError("El nombre del producto es obligatorio.");
+        if (!newProductSku.trim()) return setCreateProductError("El SKU es obligatorio.");
+        if (!newVariantName.trim()) return setCreateProductError("El nombre de la variante es obligatorio.");
+
+        try {
+            setCreatingProduct(true);
+            const productRes = await fetch("/api/products", {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    categoryId: parseInt(newCategoryId, 10),
+                    sku: newProductSku.trim(),
+                    name: newProductName.trim(),
+                    isActive: true,
+                }),
+            });
+            if (!productRes.ok) {
+                const err = await productRes.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo crear el producto.");
+            }
+            const product = await productRes.json();
+
+            const variantRes = await fetch("/api/product-variants", {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ productId: product.id, name: newVariantName.trim(), isActive: true }),
+            });
+            if (!variantRes.ok) {
+                const err = await variantRes.json().catch(() => ({}));
+                throw new Error(err.error || "No se pudo crear la variante.");
+            }
+            const variant = await variantRes.json();
+
+            await loadVariants();
+            setNewTplVariantId(String(variant.id));
+
+            setShowCreateProduct(false);
+            setNewCategoryId("");
+            setNewProductName("");
+            setNewProductSku("");
+            setNewVariantName("");
+            setSkuHint(null);
+        } catch (err) {
+            setCreateProductError(err instanceof Error ? err.message : "No se pudo crear el producto.");
+        } finally {
+            setCreatingProduct(false);
+        }
+    };
 
     const handleCreateTemplate = async () => {
         if (!newTplVariantId || !newTplName.trim()) return;
@@ -224,6 +317,36 @@ const TemplatesPage = () => {
                                 </option>
                             ))}
                         </select>
+                        <Button size="small" action="secondary" onClick={() => setShowCreateProduct((prev) => !prev)}>
+                            {showCreateProduct ? "Cancelar producto nuevo" : "+ Crear producto nuevo"}
+                        </Button>
+
+                        {showCreateProduct && (
+                            <div className={styles.formCard}>
+                                <label>Categoría:</label>
+                                <select value={newCategoryId} onChange={(e) => setNewCategoryId(e.target.value)} className={styles.select}>
+                                    <option value="">Seleccionar...</option>
+                                    {categories.map((c) => (
+                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                </select>
+                                <label>Nombre del producto:</label>
+                                <input value={newProductName} onChange={(e) => setNewProductName(e.target.value)} placeholder="Ej: Galletas de avena" className={styles.input} />
+                                <label>SKU:</label>
+                                <div className={styles.formActions}>
+                                    <input value={newProductSku} onChange={(e) => setNewProductSku(e.target.value)} placeholder="Ej: GAL001" className={styles.input} />
+                                    <Button size="small" action="secondary" onClick={handleGenerateSku}>Generar</Button>
+                                </div>
+                                {skuHint ? <p className={styles.emptyText}>{skuHint}</p> : null}
+                                <label>Nombre de la variante:</label>
+                                <input value={newVariantName} onChange={(e) => setNewVariantName(e.target.value)} placeholder="Ej: Bolsa de 500 g" className={styles.input} />
+                                {createProductError ? <p className={styles.emptyText} style={{ color: "#b91c1c" }}>{createProductError}</p> : null}
+                                <Button size="small" action="primary" onClick={handleCreateProductAndVariant}>
+                                    {creatingProduct ? "Creando..." : "Crear y seleccionar"}
+                                </Button>
+                            </div>
+                        )}
+
                         <label>Nombre:</label>
                         <input
                             value={newTplName}
