@@ -6,6 +6,14 @@ import HeaderXuchil from "@/components/HeaderXuchil";
 import Button from "@/components/Button";
 import styles from "./Templates.module.css";
 
+interface StepRequiredMaterial {
+    rawMaterialId: number;
+    qtyPerUnitOutput: number;
+    unitId: number;
+    rawMaterial?: { name: string; code?: string };
+    unit?: { name: string };
+}
+
 interface TemplateStep {
     id: number;
     position: number;
@@ -13,6 +21,13 @@ interface TemplateStep {
     idealDurationMin: number | null;
     requiresInput: boolean;
     instructions: string | null;
+    stepRequiredMaterials?: StepRequiredMaterial[];
+}
+
+interface MaterialRow {
+    rawMaterialId: string;
+    quantity: number;
+    unitId: number;
 }
 
 interface Template {
@@ -56,17 +71,25 @@ const TemplatesPage = () => {
     const [creatingProduct, setCreatingProduct] = useState(false);
     const [createProductError, setCreateProductError] = useState<string | null>(null);
 
+    // Raw materials + units for step material assignment
+    const [rawMaterials, setRawMaterials] = useState<Array<{ id: number; name: string; code: string; defaultUnitId: number | null }>>([]);
+    const [units, setUnits] = useState<Array<{ id: number; name: string }>>([]);
+
     // New step form
     const [newStepName, setNewStepName] = useState("");
     const [newStepDuration, setNewStepDuration] = useState("");
     const [newStepInstructions, setNewStepInstructions] = useState("");
     const [newStepRequiresInput, setNewStepRequiresInput] = useState(false);
+    const [newStepMaterials, setNewStepMaterials] = useState<MaterialRow[]>([]);
 
     // Edit step form
     const [editStepName, setEditStepName] = useState("");
     const [editStepDuration, setEditStepDuration] = useState("");
     const [editStepInstructions, setEditStepInstructions] = useState("");
     const [editStepRequiresInput, setEditStepRequiresInput] = useState(false);
+    const [editStepMaterials, setEditStepMaterials] = useState<MaterialRow[]>([]);
+
+    const defaultUnitId = () => units[0]?.id ?? 1;
 
     const loadTemplates = useCallback(async () => {
         const res = await fetch("/api/process-templates", { credentials: "include" });
@@ -102,11 +125,55 @@ const TemplatesPage = () => {
         }
     }, []);
 
+    const loadRefData = useCallback(async () => {
+        const [matsRes, unitsRes] = await Promise.all([
+            fetch("/api/raw-materials", { credentials: "include" }),
+            fetch("/api/units", { credentials: "include" }),
+        ]);
+        if (matsRes.ok) setRawMaterials(await matsRes.json());
+        if (unitsRes.ok) setUnits(await unitsRes.json());
+    }, []);
+
     useEffect(() => {
         loadTemplates();
         loadVariants();
         loadCategories();
-    }, [loadTemplates, loadVariants, loadCategories]);
+        loadRefData();
+    }, [loadTemplates, loadVariants, loadCategories, loadRefData]);
+
+    // Helpers to edit a material-row list (used by both add and edit step forms).
+    const addMaterialRow = (setter: React.Dispatch<React.SetStateAction<MaterialRow[]>>) =>
+        setter((prev) => [...prev, { rawMaterialId: "", quantity: 1, unitId: defaultUnitId() }]);
+
+    const removeMaterialRow = (setter: React.Dispatch<React.SetStateAction<MaterialRow[]>>, index: number) =>
+        setter((prev) => prev.filter((_, i) => i !== index));
+
+    const updateMaterialRow = (
+        setter: React.Dispatch<React.SetStateAction<MaterialRow[]>>,
+        index: number,
+        field: keyof MaterialRow,
+        value: string | number
+    ) =>
+        setter((prev) =>
+            prev.map((row, i) => {
+                if (i !== index) return row;
+                const updated = { ...row, [field]: value } as MaterialRow;
+                if (field === "rawMaterialId") {
+                    const selected = rawMaterials.find((rm) => String(rm.id) === String(value));
+                    if (selected?.defaultUnitId) updated.unitId = selected.defaultUnitId;
+                }
+                return updated;
+            })
+        );
+
+    const materialsPayload = (rows: MaterialRow[]) =>
+        rows
+            .filter((row) => row.rawMaterialId && row.quantity > 0)
+            .map((row) => ({
+                rawMaterialId: parseInt(row.rawMaterialId, 10),
+                qtyPerUnitOutput: row.quantity,
+                unitId: row.unitId,
+            }));
 
     const handleGenerateSku = async () => {
         setCreateProductError(null);
@@ -236,6 +303,7 @@ const TemplatesPage = () => {
                 idealDurationMin: newStepDuration ? parseInt(newStepDuration) : null,
                 instructions: newStepInstructions.trim() || null,
                 requiresInput: newStepRequiresInput,
+                materials: materialsPayload(newStepMaterials),
             }),
         });
         if (res.ok) {
@@ -244,6 +312,7 @@ const TemplatesPage = () => {
             setNewStepDuration("");
             setNewStepInstructions("");
             setNewStepRequiresInput(false);
+            setNewStepMaterials([]);
             loadTemplates();
         } else {
             const err = await res.json().catch(() => ({}));
@@ -257,6 +326,13 @@ const TemplatesPage = () => {
         setEditStepDuration(step.idealDurationMin?.toString() || "");
         setEditStepInstructions(step.instructions || "");
         setEditStepRequiresInput(step.requiresInput);
+        setEditStepMaterials(
+            (step.stepRequiredMaterials || []).map((m) => ({
+                rawMaterialId: String(m.rawMaterialId),
+                quantity: Number(m.qtyPerUnitOutput),
+                unitId: m.unitId,
+            }))
+        );
     };
 
     const handleSaveStep = async (step: TemplateStep) => {
@@ -271,10 +347,12 @@ const TemplatesPage = () => {
                 idealDurationMin: editStepDuration ? parseInt(editStepDuration) : null,
                 instructions: editStepInstructions.trim() || null,
                 requiresInput: editStepRequiresInput,
+                materials: materialsPayload(editStepMaterials),
             }),
         });
         if (res.ok) {
             setEditingStepId(null);
+            setEditStepMaterials([]);
             loadTemplates();
         }
     };
@@ -293,6 +371,50 @@ const TemplatesPage = () => {
         if (v) return `${v.product?.name || ""} — ${v.name}`;
         return `Variante #${tpl.productVariantId}`;
     };
+
+    const renderMaterialsEditor = (
+        rows: MaterialRow[],
+        setter: React.Dispatch<React.SetStateAction<MaterialRow[]>>
+    ) => (
+        <div>
+            <label>Materias primas del paso:</label>
+            {rows.map((row, index) => (
+                <div key={index} className={styles.formActions}>
+                    <select
+                        value={row.rawMaterialId}
+                        onChange={(e) => updateMaterialRow(setter, index, "rawMaterialId", e.target.value)}
+                        className={styles.select}
+                    >
+                        <option value="">Materia prima...</option>
+                        {rawMaterials.map((rm) => (
+                            <option key={rm.id} value={rm.id}>{rm.code} — {rm.name}</option>
+                        ))}
+                    </select>
+                    <input
+                        type="number"
+                        min="0.001"
+                        step="0.001"
+                        value={row.quantity}
+                        onChange={(e) => updateMaterialRow(setter, index, "quantity", Math.max(0.001, parseFloat(e.target.value) || 0.001))}
+                        className={styles.input}
+                    />
+                    <select
+                        value={row.unitId}
+                        onChange={(e) => updateMaterialRow(setter, index, "unitId", parseInt(e.target.value, 10))}
+                        className={styles.select}
+                    >
+                        {units.map((u) => (
+                            <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                    </select>
+                    <button type="button" className={styles.linkBtn} onClick={() => removeMaterialRow(setter, index)}>✕</button>
+                </div>
+            ))}
+            <button type="button" className={styles.addStepBtn} onClick={() => addMaterialRow(setter)}>
+                + Agregar materia prima
+            </button>
+        </div>
+    );
 
     return (
         <div className="page">
@@ -407,6 +529,7 @@ const TemplatesPage = () => {
                                                             <input type="checkbox" checked={editStepRequiresInput} onChange={(e) => setEditStepRequiresInput(e.target.checked)} />
                                                             Requiere cantidad
                                                         </label>
+                                                        {renderMaterialsEditor(editStepMaterials, setEditStepMaterials)}
                                                         <div className={styles.formActions}>
                                                             <button className={styles.saveBtn} onClick={() => handleSaveStep(step)}>Guardar</button>
                                                             <button className={styles.linkBtn} onClick={() => setEditingStepId(null)}>Cancelar</button>
@@ -418,6 +541,11 @@ const TemplatesPage = () => {
                                                             <strong>{step.name}</strong>
                                                             {step.idealDurationMin && <span className={styles.stepDuration}>{step.idealDurationMin} min</span>}
                                                             {step.instructions && <span className={styles.stepInstr}>{step.instructions}</span>}
+                                                            {step.stepRequiredMaterials && step.stepRequiredMaterials.length > 0 && (
+                                                                <span className={styles.stepInstr}>
+                                                                    Materias: {step.stepRequiredMaterials.map((m) => `${m.rawMaterial?.name ?? `#${m.rawMaterialId}`} (${m.qtyPerUnitOutput} ${m.unit?.name ?? ""})`).join(", ")}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div className={styles.stepActions}>
                                                             <button className={styles.linkBtn} onClick={() => handleStartEditStep(step)}>Editar</button>
@@ -439,6 +567,7 @@ const TemplatesPage = () => {
                                             <input type="checkbox" checked={newStepRequiresInput} onChange={(e) => setNewStepRequiresInput(e.target.checked)} />
                                             Requiere ingresar cantidad
                                         </label>
+                                        {renderMaterialsEditor(newStepMaterials, setNewStepMaterials)}
                                         <div className={styles.formActions}>
                                             <Button size="small" action="primary" onClick={() => handleAddStep(tpl.id)}>Agregar</Button>
                                             <Button size="small" action="secondary" onClick={() => setShowNewStep(null)}>Cancelar</Button>

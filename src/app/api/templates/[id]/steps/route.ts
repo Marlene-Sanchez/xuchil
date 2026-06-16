@@ -44,6 +44,16 @@ export async function POST(
         idealDurationMin: validBody.idealDurationMin,
         requiresInput: validBody.requiresInput,
         instructions: validBody.instructions,
+        stepRequiredMaterials: {
+          create: (validBody.materials ?? []).map((material) => ({
+            rawMaterialId: material.rawMaterialId,
+            qtyPerUnitOutput: material.qtyPerUnitOutput,
+            unitId: material.unitId,
+          })),
+        },
+      },
+      include: {
+        stepRequiredMaterials: { include: { rawMaterial: true, unit: true } },
       },
     });
     return NextResponse.json(created, { status: 201 });

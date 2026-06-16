@@ -79,7 +79,14 @@ export const templateStepSchema = z.strictObject({
     position: z.number(typeError("position", "number")).int(typeError("position", "int")).optional(),
     idealDurationMin: z.number().int(typeError("idealDurationMin", "int")).optional().nullable(),
     requiresInput: z.boolean(typeError("requiresInput", "boolean")).optional(),
-    instructions: z.string(typeError("instructions", "string")).optional().nullable()
+    instructions: z.string(typeError("instructions", "string")).optional().nullable(),
+    materials: z.array(
+        z.strictObject({
+            rawMaterialId: z.number(requiredError("rawMaterialId")).int(typeError("rawMaterialId", "int")),
+            qtyPerUnitOutput: z.number(requiredError("qtyPerUnitOutput")).positive("qtyPerUnitOutput must be positive."),
+            unitId: z.number(requiredError("unitId")).int(typeError("unitId", "int")),
+        })
+    ).optional()
 })
 
 export const createProcess = z.strictObject({
