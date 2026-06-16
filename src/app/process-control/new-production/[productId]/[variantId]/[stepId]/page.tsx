@@ -5,7 +5,6 @@ import React, { useState, useEffect, useCallback } from "react";
 import HeaderXuchil from "@/components/HeaderXuchil";
 import Chronometer from "@/components/Chronometer";
 import BottomButton from "@/components/BottomButton";
-import UnitField from "@/components/UnitField";
 import styles from "./ProcessStep.module.css";
 import { ProcessStep } from "@/types/ProcessStep";
 import { ProductVariant } from "@/types/ProductVariant";
@@ -19,7 +18,6 @@ const ProcessStepPage = () => {
   const [currentStep, setCurrentStep] = useState<ProcessStep | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
-  const [quantity, setQuantity] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // API-linked state
@@ -29,6 +27,16 @@ const ProcessStepPage = () => {
   const [initialTime, setInitialTime] = useState(0);
   const [templateId, setTemplateId] = useState<number | null>(null);
 
+  // Reservation / consumption state
+  const [runHasReservations, setRunHasReservations] = useState(false);
+  const [reserveQty, setReserveQty] = useState<Record<string, number>>({});
+  const [consumeQty, setConsumeQty] = useState<Record<number, number>>({});
+  const [reserving, setReserving] = useState(false);
+  const [panelError, setPanelError] = useState<string | null>(null);
+
+  // Use a ref to avoid stale closure issues with stepExecutionId
+  const stepExecIdRef = React.useRef<number | null>(null);
+
   useEffect(() => {
     let mounted = true;
 
@@ -37,7 +45,10 @@ const ProcessStepPage = () => {
       const stepPosition = parseInt((stepId as string) || "1", 10);
       const positionIndex = stepPosition - 1; // convert to 0-based
 
-      const variantRes = await fetch(`/api/product-variants?product_id=${productId}`, { credentials: "include" });
+      // Look the variant up by its own id, regardless of what the productId
+      // route segment means (category id from new-production, product id from
+      // the dashboard resume links).
+      const variantRes = await fetch(`/api/product-variants`, { credentials: "include" });
       if (!variantRes.ok) {
         if (mounted) setLoadError("No se pudieron cargar las variantes del producto.");
         return;
@@ -85,6 +96,13 @@ const ProcessStepPage = () => {
         hasInput: step.requiresInput,
         unit: "",
         description: step.instructions ?? "",
+        materials: (step.stepRequiredMaterials || []).map((srm: any) => ({
+          rawMaterialId: srm.rawMaterialId,
+          name: srm.rawMaterial?.name ?? `Materia prima ${srm.rawMaterialId}`,
+          qtyPerUnitOutput: Number(srm.qtyPerUnitOutput),
+          unitId: srm.unitId,
+          unitName: srm.unit?.name ?? "",
+        })),
       }));
 
       if (allSteps.length === 0) {
@@ -100,11 +118,13 @@ const ProcessStepPage = () => {
       }
 
       // Load active process run for this variant
+      let foundRun: any = null;
       const pendingRes = await fetch("/api/process-runs/pending", { credentials: "include" });
       if (pendingRes.ok) {
         const pendingRuns = await pendingRes.json();
         const activeRun = pendingRuns.find((run: any) => String(run.productVariantId) === stringVariantId);
         if (activeRun) {
+          foundRun = activeRun;
           if (mounted) {
             setProcessRunId(activeRun.id);
           }
@@ -117,10 +137,21 @@ const ProcessStepPage = () => {
             setStepExecutionId(stepExec.id);
             setStepStatus(stepExec.status);
 
-            // If step was already started, calculate elapsed time
+            // If step was already started, calculate elapsed working time
+            // (wall clock minus any paused intervals overlapping the step).
             if (stepExec.startedAt && (stepExec.status === "IN_PROGRESS" || stepExec.status === "BLOCKED")) {
-              const elapsed = Math.floor((Date.now() - new Date(stepExec.startedAt).getTime()) / 1000);
-              setInitialTime(Math.max(0, elapsed));
+              const startedMs = new Date(stepExec.startedAt).getTime();
+              const nowMs = Date.now();
+              let pausedMs = 0;
+              for (const pause of activeRun.processPauses || []) {
+                const ps = new Date(pause.startedAt).getTime();
+                const pe = pause.endedAt ? new Date(pause.endedAt).getTime() : nowMs;
+                const overlapStart = Math.max(startedMs, ps);
+                const overlapEnd = Math.min(nowMs, pe);
+                if (overlapEnd > overlapStart) pausedMs += overlapEnd - overlapStart;
+              }
+              const elapsed = Math.max(0, Math.floor((nowMs - startedMs - pausedMs) / 1000));
+              setInitialTime(elapsed);
               setHasStarted(true);
             }
           }
@@ -128,13 +159,35 @@ const ProcessStepPage = () => {
       }
 
       if (!mounted) return;
+
+      const safeIndex = Math.max(0, Math.min(positionIndex, allSteps.length - 1));
+      const activeStep = allSteps[safeIndex] || null;
+
+      // Default quantities for the reservation panel (suggested per template).
+      const rq: Record<string, number> = {};
+      for (const s of allSteps) {
+        for (const m of s.materials ?? []) {
+          rq[`${s.id}:${m.rawMaterialId}`] = m.qtyPerUnitOutput;
+        }
+      }
+      setReserveQty(rq);
+
+      // Default consume quantities for the current step (from reservations if any).
+      const reservations: any[] = foundRun?.materialReservations ?? [];
+      setRunHasReservations(reservations.length > 0);
+      const cq: Record<number, number> = {};
+      for (const m of activeStep?.materials ?? []) {
+        const reserved = reservations.find(
+          (r) => r.templateStepId === activeStep!.id && r.rawMaterialId === m.rawMaterialId && r.status === "RESERVED"
+        );
+        cq[m.rawMaterialId] = reserved ? Number(reserved.qty) : m.qtyPerUnitOutput;
+      }
+      setConsumeQty(cq);
+
       setCurrentVariant(mappedVariant);
       setSteps(allSteps);
-
-      // Use position index to find the current step
-      const safeIndex = Math.max(0, Math.min(positionIndex, allSteps.length - 1));
       setStepIndex(safeIndex);
-      setCurrentStep(allSteps[safeIndex] || null);
+      setCurrentStep(activeStep);
     }
 
     load();
@@ -143,9 +196,6 @@ const ProcessStepPage = () => {
       mounted = false;
     };
   }, [productId, variantId, stepId]);
-
-  // Use a ref to avoid stale closure issues with stepExecutionId
-  const stepExecIdRef = React.useRef<number | null>(null);
 
   const callStepActionDirect = async (execId: number, action: string, body?: object) => {
     try {
@@ -157,14 +207,13 @@ const ProcessStepPage = () => {
       if (body) opts.body = JSON.stringify(body);
       const res = await fetch(`/api/step-executions/${execId}/${action}`, opts);
       if (!res.ok) {
-        const text = await res.text();
-        console.error(`Step action ${action} failed (${res.status}):`, text);
-        return false;
+        const err = await res.json().catch(() => ({}));
+        return { ok: false, error: err.error || `No se pudo ${action} el paso.` };
       }
-      return true;
+      return { ok: true };
     } catch (e) {
       console.error(`Step action ${action} error:`, e);
-      return false;
+      return { ok: false, error: "Error de red al ejecutar el paso." };
     }
   };
 
@@ -172,10 +221,92 @@ const ProcessStepPage = () => {
     const id = stepExecIdRef.current;
     if (!id) {
       console.warn(`No stepExecutionId available for action: ${action}`);
-      return false;
+      return { ok: false, error: "Paso no inicializado." };
     }
     return callStepActionDirect(id, action, body);
   }, []);
+
+  const templateNeedsMaterials = steps.some((s) => (s.materials?.length ?? 0) > 0);
+  const needsReservation =
+    !stepExecutionId && !runHasReservations && templateNeedsMaterials && stepIndex === 0;
+  const currentStepHasMaterials = (currentStep?.materials?.length ?? 0) > 0;
+
+  // Build the consumption body for a step from a quantity map keyed by rawMaterialId.
+  const consumeBody = (step: ProcessStep, qtyByMaterial: Record<number, number>) => {
+    const materials = (step.materials ?? [])
+      .map((m) => ({ rawMaterialId: m.rawMaterialId, qty: qtyByMaterial[m.rawMaterialId] ?? m.qtyPerUnitOutput, unitId: m.unitId }))
+      .filter((m) => m.qty > 0);
+    return materials.length ? { materials } : undefined;
+  };
+
+  const handleReserve = async () => {
+    if (!templateId) return;
+    setPanelError(null);
+    setReserving(true);
+    try {
+      const numericVariantId = parseInt(variantId as string, 10);
+      const runRes = await fetch("/api/process-runs", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productVariantId: numericVariantId, processTemplateId: templateId }),
+      });
+      if (!runRes.ok) throw new Error("No se pudo crear el proceso.");
+      const newRun = await runRes.json();
+
+      // Reserve materials for EVERY step up front (not just the first one).
+      const items: Array<{ templateStepId: number; rawMaterialId: number; qty: number; unitId: number }> = [];
+      for (const s of steps) {
+        for (const m of s.materials ?? []) {
+          const qty = reserveQty[`${s.id}:${m.rawMaterialId}`] ?? m.qtyPerUnitOutput;
+          if (qty > 0) items.push({ templateStepId: s.id, rawMaterialId: m.rawMaterialId, qty, unitId: m.unitId });
+        }
+      }
+
+      if (items.length > 0) {
+        const reserveRes = await fetch(`/api/process-runs/${newRun.id}/reserve`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items }),
+        });
+        if (!reserveRes.ok) {
+          const err = await reserveRes.json().catch(() => ({}));
+          if (reserveRes.status === 409 && Array.isArray(err.insufficient)) {
+            const names = err.insufficient.map((i: any) => i.name).join(", ");
+            throw new Error(`Materia prima insuficiente: ${names}.`);
+          }
+          throw new Error(err.error || "No se pudo apartar la materia prima.");
+        }
+      }
+
+      // Run created and everything reserved. Leave the first step PENDING; the
+      // user starts it manually with INICIAR (consuming only that step then).
+      const orderedExecs = newRun.stepExecutions || [];
+      const stepExec = orderedExecs[stepIndex];
+      if (stepExec) {
+        stepExecIdRef.current = stepExec.id;
+        setStepExecutionId(stepExec.id);
+      }
+      setProcessRunId(newRun.id);
+      setRunHasReservations(true);
+      setStepStatus("PENDING");
+      if (currentStep) setConsumeQty(reserveStepQty(currentStep));
+    } catch (e) {
+      setPanelError(e instanceof Error ? e.message : "Error al apartar la materia prima.");
+    } finally {
+      setReserving(false);
+    }
+  };
+
+  // Reserved quantities for a step, keyed by rawMaterialId, taken from reserveQty.
+  const reserveStepQty = (step: ProcessStep): Record<number, number> => {
+    const map: Record<number, number> = {};
+    for (const m of step.materials ?? []) {
+      map[m.rawMaterialId] = reserveQty[`${step.id}:${m.rawMaterialId}`] ?? m.qtyPerUnitOutput;
+    }
+    return map;
+  };
 
   if (loadError) {
     return (
@@ -203,7 +334,7 @@ const ProcessStepPage = () => {
   const handleChronometerStart = async () => {
     setHasStarted(true);
 
-    // If no ProcessRun exists, create one first
+    // No run yet and template without materials: create the run and start (legacy path).
     if (!stepExecIdRef.current && templateId) {
       try {
         const numericVariantId = parseInt(variantId as string, 10);
@@ -211,12 +342,8 @@ const ProcessStepPage = () => {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            productVariantId: numericVariantId,
-            processTemplateId: templateId,
-          }),
+          body: JSON.stringify({ productVariantId: numericVariantId, processTemplateId: templateId }),
         });
-
         if (res.ok) {
           const newRun = await res.json();
           setProcessRunId(newRun.id);
@@ -226,26 +353,22 @@ const ProcessStepPage = () => {
             stepExecIdRef.current = stepExec.id;
             setStepExecutionId(stepExec.id);
             setStepStatus("PENDING");
-            // Now call start
-            const ok = await callStepActionDirect(stepExec.id, "start");
-            if (ok) {
-              setStepStatus("IN_PROGRESS");
-            } else {
-              console.error("Failed to start step after creating run");
-            }
+            const result = await callStepActionDirect(stepExec.id, "start");
+            if (result.ok) setStepStatus("IN_PROGRESS");
+            else setPanelError(result.error);
           }
         } else {
-          const err = await res.text();
-          console.error("Failed to create ProcessRun:", err);
+          setPanelError("No se pudo crear el proceso.");
         }
       } catch (e) {
         console.error("Error creating ProcessRun:", e);
+        setPanelError("Error al crear el proceso.");
       }
     } else if (stepStatus === "PENDING") {
-      const ok = await callStepAction("start");
-      if (ok) {
-        setStepStatus("IN_PROGRESS");
-      }
+      const body = consumeBody(currentStep, consumeQty);
+      const result = await callStepAction("start", body);
+      if (result.ok) setStepStatus("IN_PROGRESS");
+      else setPanelError(result.error);
     }
   };
 
@@ -284,27 +407,84 @@ const ProcessStepPage = () => {
         <h2>{`Paso ${stepIndex + 1} de ${steps.length}: ${currentStep.title}`}</h2>
         <p>{`${currentStep.description}`}</p>
 
-        {!hasStarted && currentStep.hasInput && (
-          <UnitField
-            value={quantity}
-            onChange={setQuantity}
-            unit="Kg"
-          />
-        )}
+        {needsReservation ? (
+          <div className={styles.panel}>
+            <h3 className={styles.panelTitle}>Apartar materia prima del proceso</h3>
+            {steps.map((s) =>
+              (s.materials ?? []).map((m) => (
+                <div key={`${s.id}:${m.rawMaterialId}`} className={styles.panelRow}>
+                  <span className={styles.panelLabel}>{`${s.title}: ${m.name}`}</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    className={styles.qtyInput}
+                    value={reserveQty[`${s.id}:${m.rawMaterialId}`] ?? m.qtyPerUnitOutput}
+                    onChange={(e) =>
+                      setReserveQty((prev) => ({
+                        ...prev,
+                        [`${s.id}:${m.rawMaterialId}`]: Math.max(0, parseFloat(e.target.value) || 0),
+                      }))
+                    }
+                  />
+                  <span className={styles.unitTag}>{m.unitName}</span>
+                </div>
+              ))
+            )}
+            {panelError ? <p className={styles.panelError}>{panelError}</p> : null}
+            <button
+              type="button"
+              className={styles.reserveButton}
+              onClick={handleReserve}
+              disabled={reserving}
+            >
+              {reserving ? "Apartando..." : "Apartar materia prima"}
+            </button>
+          </div>
+        ) : (
+          <>
+            {!hasStarted && stepStatus === "PENDING" && currentStepHasMaterials && (
+              <div className={styles.panel}>
+                <h3 className={styles.panelTitle}>Materia prima a usar en este paso</h3>
+                {(currentStep.materials ?? []).map((m) => (
+                  <div key={m.rawMaterialId} className={styles.panelRow}>
+                    <span className={styles.panelLabel}>{m.name}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      className={styles.qtyInput}
+                      value={consumeQty[m.rawMaterialId] ?? m.qtyPerUnitOutput}
+                      onChange={(e) =>
+                        setConsumeQty((prev) => ({
+                          ...prev,
+                          [m.rawMaterialId]: Math.max(0, parseFloat(e.target.value) || 0),
+                        }))
+                      }
+                    />
+                    <span className={styles.unitTag}>{m.unitName}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
-        <Chronometer
-          estimatedTime={currentStep.estimatedTime}
-          onStart={handleChronometerStart}
-          onPause={handlePause}
-          onResume={handleResume}
-          initialTime={initialTime}
-          initialRunning={stepStatus === "IN_PROGRESS"}
-        />
+            <Chronometer
+              estimatedTime={currentStep.estimatedTime}
+              onStart={handleChronometerStart}
+              onPause={handlePause}
+              onResume={handleResume}
+              initialTime={initialTime}
+              initialRunning={stepStatus === "IN_PROGRESS"}
+            />
 
-        {hasStarted && (
-          <BottomButton onClick={handleNextStep}>
-            Siguiente
-          </BottomButton>
+            {panelError ? <p className={styles.panelError}>{panelError}</p> : null}
+
+            {hasStarted && (
+              <BottomButton onClick={handleNextStep}>
+                Siguiente
+              </BottomButton>
+            )}
+          </>
         )}
       </div>
     </div>

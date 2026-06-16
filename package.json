@@ -23,7 +23,8 @@
     "user:create": "tsx scripts/create-user.ts",
     "user:list": "tsx scripts/list-users.ts",
     "inventory:clear": "tsx scripts/clear-inventory.ts",
-    "inventory:stats": "tsx scripts/inventory-stats.ts"
+    "inventory:stats": "tsx scripts/inventory-stats.ts",
+    "inventory:backfill-items": "tsx scripts/backfill-inventory-items.ts"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"

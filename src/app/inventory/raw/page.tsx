@@ -14,7 +14,11 @@ type InventoryRawRow = {
   presentation: string;
   quantity: number;
   units: string;
+  note?: string;
 };
+
+const formatQty = (value: number) =>
+  Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/\.?0+$/, "");
 
 export default function RawInventoryPage() {
     const [search, setSearch] = useState("");
@@ -25,10 +29,21 @@ export default function RawInventoryPage() {
         let mounted = true;
 
         async function load() {
-            const response = await fetch("/api/inventory/summary?item_type=RAW", { credentials: "include" });
-            if (!response.ok) return;
-            const data = await response.json();
+            const [summaryRes, availabilityRes] = await Promise.all([
+                fetch("/api/inventory/summary?item_type=RAW", { credentials: "include" }),
+                fetch("/api/raw-materials/availability", { credentials: "include" }),
+            ]);
+            if (!summaryRes.ok) return;
+            const data = await summaryRes.json();
             if (!mounted) return;
+
+            const availabilityByMaterial = new Map<number, any>();
+            if (availabilityRes.ok) {
+                const availability = await availabilityRes.json();
+                for (const entry of availability) {
+                    availabilityByMaterial.set(entry.rawMaterialId, entry);
+                }
+            }
 
             const mapped = data.map((item: any) => {
                 const qty = (item.inventoryLots || []).reduce(
@@ -40,6 +55,17 @@ export default function RawInventoryPage() {
                     item.inventoryLots?.[0]?.unit?.name ||
                     "";
 
+                const availability = availabilityByMaterial.get(item.rawMaterial?.id);
+                let note: string | undefined;
+                if (availability) {
+                    const factor = availability.defaultUnitFactor || 1;
+                    const reserved = factor > 0 ? availability.reservedBase / factor : availability.reservedBase;
+                    const available = availability.availableInDefaultUnit ?? 0;
+                    if (reserved > 0) {
+                        note = `Apartado: ${formatQty(reserved)} ${units} · Disponible: ${formatQty(available)} ${units}`;
+                    }
+                }
+
                 return {
                     id: item.id,
                     name: item.rawMaterial?.name ?? "Materia prima",
@@ -47,6 +73,7 @@ export default function RawInventoryPage() {
                     presentation: "",
                     quantity: qty,
                     units,
+                    note,
                 };
             });
 

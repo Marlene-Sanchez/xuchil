@@ -15,7 +15,7 @@ const ProductDetailPage = () => {
     let mounted = true;
 
     async function load() {
-      const response = await fetch(`/api/product-variants?product_id=${productId}`, { credentials: "include" });
+      const response = await fetch(`/api/product-variants?category_id=${productId}`, { credentials: "include" });
       if (!response.ok) return;
       const data = await response.json();
       if (!mounted) return;

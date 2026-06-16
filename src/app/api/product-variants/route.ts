@@ -9,12 +9,19 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const productIdRaw = searchParams.get("product_id");
+    const categoryIdRaw = searchParams.get("category_id");
 
     const where: any = { isActive: true };
     if (productIdRaw) {
       const productId = parseInt(productIdRaw, 10);
       if (!Number.isNaN(productId)) {
         where.productId = productId;
+      }
+    }
+    if (categoryIdRaw) {
+      const categoryId = parseInt(categoryIdRaw, 10);
+      if (!Number.isNaN(categoryId)) {
+        where.product = { categoryId };
       }
     }
 
@@ -59,15 +66,17 @@ export async function POST(request: NextRequest) {
       data: productVariantData,
     });
 
-    if (initialStock > 0 && productVariantData.defaultUnitId) {
-      const inventoryItem = await prisma.inventoryItem.create({
-        data: {
-          itemType: ItemType.PRODUCT,
-          productVariantId: variant.id,
-          defaultUnitId: productVariantData.defaultUnitId,
-        },
-      });
+    // Always create the inventory item so the variant shows up in inventory,
+    // even with zero stock (stock can be added later via restock).
+    const inventoryItem = await prisma.inventoryItem.create({
+      data: {
+        itemType: ItemType.PRODUCT,
+        productVariantId: variant.id,
+        defaultUnitId: productVariantData.defaultUnitId ?? null,
+      },
+    });
 
+    if (initialStock > 0 && productVariantData.defaultUnitId) {
       const lot = await prisma.inventoryLot.create({
         data: {
           inventoryItemId: inventoryItem.id,

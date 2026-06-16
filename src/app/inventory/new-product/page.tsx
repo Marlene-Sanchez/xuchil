@@ -177,7 +177,7 @@ const NewProductPage = () => {
           disabled={products.length === 0}
         >
           {products.length === 0 ? (
-            <option value="">Cargando productos...</option>
+            <option value="">No hay productos base</option>
           ) : (
             products.map((product) => (
               <option key={product.id} value={product.id}>
@@ -187,6 +187,13 @@ const NewProductPage = () => {
           )}
         </select>
       </div>
+      <button
+        type="button"
+        className={styles.linkButton}
+        onClick={() => router.push("/inventory/new-base-product")}
+      >
+        + Crear producto base
+      </button>
 
       {error ? <p className={styles.error}>{error}</p> : null}
 

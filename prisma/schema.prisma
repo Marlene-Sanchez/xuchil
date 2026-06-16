@@ -56,6 +56,12 @@ enum MovementReason {
   OUTBOUND_ORDER
 }
 
+enum ReservationStatus {
+  RESERVED
+  CONSUMED
+  RELEASED
+}
+
 model Unit {
   id           Int     @id @default(autoincrement())
   name         String  @unique
@@ -74,6 +80,7 @@ model Unit {
   inventoryLots         InventoryLot[]
   inventoryMovements    InventoryMovement[]
   orderItems            OrderItem[]
+  materialReservations  MaterialReservation[]
 }
 
 model ProductCategory {
@@ -135,6 +142,7 @@ model RawMaterial {
   stepRequiredMaterials StepRequiredMaterial[]
   stepMaterialUsages    StepMaterialUsage[]
   inventoryItems        InventoryItem[]
+  materialReservations  MaterialReservation[]
 }
 
 model Role {
@@ -201,6 +209,7 @@ model TemplateStep {
   processTemplate       ProcessTemplate        @relation(fields: [processTemplateId], references: [id])
   stepRequiredMaterials StepRequiredMaterial[]
   stepExecutions        StepExecution[]
+  materialReservations  MaterialReservation[]
 
   @@unique([processTemplateId, position])
 }
@@ -238,9 +247,10 @@ model ProcessRun {
   creator            Worker?             @relation(fields: [createdByWorkerId], references: [id])
   plannedUnit        Unit?               @relation("PlannedUnitRun", fields: [plannedUnitId], references: [id])
   outputUnit         Unit?               @relation("OutputUnitRun", fields: [outputUnitId], references: [id])
-  processPauses      ProcessPause[]
-  stepExecutions     StepExecution[]
-  inventoryMovements InventoryMovement[]
+  processPauses        ProcessPause[]
+  stepExecutions       StepExecution[]
+  inventoryMovements   InventoryMovement[]
+  materialReservations MaterialReservation[]
 
   @@index([productVariantId])
   @@index([processTemplateId])
@@ -296,6 +306,27 @@ model StepMaterialUsage {
   unit          Unit          @relation(fields: [unitId], references: [id])
 
   @@index([stepExecutionId])
+}
+
+model MaterialReservation {
+  id             Int               @id @default(autoincrement())
+  processRunId   Int
+  templateStepId Int
+  rawMaterialId  Int
+  qty            Decimal
+  unitId         Int
+  status         ReservationStatus @default(RESERVED)
+  createdAt      DateTime          @default(now())
+  consumedAt     DateTime?
+  releasedAt     DateTime?
+
+  processRun   ProcessRun   @relation(fields: [processRunId], references: [id])
+  templateStep TemplateStep @relation(fields: [templateStepId], references: [id])
+  rawMaterial  RawMaterial  @relation(fields: [rawMaterialId], references: [id])
+  unit         Unit         @relation(fields: [unitId], references: [id])
+
+  @@index([rawMaterialId, status])
+  @@index([processRunId])
 }
 
 model GuestCollaborator {
