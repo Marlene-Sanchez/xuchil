@@ -16,6 +16,20 @@ const rawMaterialWithStockSchema = rawMaterialSchema.extend({
   receivedAt: z.string().optional(),
 });
 
+export async function GET() {
+  try {
+    const rawMaterials = await prisma.rawMaterial.findMany({
+      where: { isActive: true },
+      include: { defaultUnit: true },
+      orderBy: { name: "asc" },
+    });
+
+    return NextResponse.json(rawMaterials);
+  } catch (error) {
+    return serverError("raw materials", "fetch", error);
+  }
+}
+
 export async function POST(request: NextRequest) {
   const payload = await verifySession();
 
