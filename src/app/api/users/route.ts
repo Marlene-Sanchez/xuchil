@@ -87,3 +87,70 @@ export async function POST(req: NextRequest) {
     return serverError('user', 'create', null);
   }
 }
+
+export async function PUT(req: NextRequest) {
+  const payload = await verifySession();
+  if (!payload?.isAdmin) {
+    return new NextResponse(null, { status: 403 });
+  }
+  try {
+    const body = await req.json();
+    const { userId, isActive, role, additionalDays } = body;
+
+    if (!userId) {
+      return NextResponse.json({ error: "userId is required" }, { status: 400 });
+    }
+
+    // 1. Encontrar el AuthUser y su Worker asociado actualmente
+    const currentAccount = await prisma.authUser.findUnique({
+      where: { id: userId },
+      include: { worker: true }
+    });
+
+    if (!currentAccount || !currentAccount.worker) {
+      return NextResponse.json({ error: "User or Worker profiles not found" }, { status: 404 });
+    }
+
+    // 2. Resolver las transformaciones de Tiempos y Roles
+    let updatedExpiresAt = currentAccount.worker.expiresAt;
+    let updatedRoleId = currentAccount.worker.roleId;
+
+    if (role === "empleado") {
+      // Si pasa a permanente: se elimina cualquier restricción de expiración y se le asigna rol permanente (1)
+      updatedExpiresAt = null;
+      updatedRoleId = 1; 
+    } else if (role === "temporal") {
+      // Si es o se mantiene temporal y se le añaden días
+      updatedRoleId = null; // Rol null para denotar temporalidad en tu esquema
+      
+      if (additionalDays > 0) {
+        const baseDate = currentAccount.worker.expiresAt 
+          ? new Date(currentAccount.worker.expiresAt) 
+          : new Date(); // Si era permanente y cambia a temporal, toma la fecha de hoy
+          
+        updatedExpiresAt = new Date(baseDate.getTime() + additionalDays * 24 * 60 * 60 * 1000);
+      }
+    }
+
+    // 3. Guardar cambios en Cascada mediante Prisma respetando la arquitectura de AuthUser
+    const updatedUser = await prisma.authUser.update({
+      where: { id: userId },
+      data: {
+        isActive: isActive, // Cambio de estado general en AuthUser
+        worker: {
+          update: {
+            isActive: isActive, // Cambio de estado general en Worker
+            roleId: updatedRoleId,
+            expiresAt: updatedExpiresAt
+          }
+        }
+      },
+      include: { worker: true }
+    });
+
+    return NextResponse.json(updatedUser);
+  } catch (error) {
+    console.error("Error en PUT /api/users:", error);
+    return serverError('user', 'update', null);
+  }
+}
