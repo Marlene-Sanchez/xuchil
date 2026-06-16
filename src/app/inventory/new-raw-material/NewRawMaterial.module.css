@@ -37,6 +37,42 @@
   margin: 0 auto;
 }
 
+.codeRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.codeRow > :first-child {
+  flex: 1;
+}
+
+.generateButton {
+  white-space: nowrap;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1.5px solid var(--primary-300, #8fbfa7);
+  background-color: var(--primary-50, #eef6f1);
+  color: var(--primary-900, #164430);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.generateButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--primary-700, #2f6b4f);
+  align-self: flex-start;
+  padding-left: 0.25rem;
+}
+
 .select {
   width: 100%;
   padding: 0.5rem;

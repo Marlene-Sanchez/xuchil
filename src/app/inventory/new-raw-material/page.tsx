@@ -23,8 +23,32 @@ const NewRawMaterialPage = () => {
   const [defaultUnitId, setDefaultUnitId] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [codeHint, setCodeHint] = useState<string | null>(null);
 
   const router = useRouter();
+
+  const handleGenerateCode = async () => {
+    setError(null);
+    try {
+      setGeneratingCode(true);
+      const response = await fetch("/api/raw-materials/next-code", {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error("No se pudo generar el código.");
+      }
+      const data = await response.json();
+      setCode(data.code);
+      setCodeHint(data.convention);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No se pudo generar el código."
+      );
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
 
   const handleSubmit = async () => {
     setError(null);
@@ -103,12 +127,23 @@ const NewRawMaterialPage = () => {
 
       <h3 className={styles.fieldLabel}>Código:</h3>
       <div className={styles.fieldContainer}>
-        <TextField
-          placeholder="Ej. MP009"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-        />
+        <div className={styles.codeRow}>
+          <TextField
+            placeholder="Ej. MP009"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          <button
+            type="button"
+            className={styles.generateButton}
+            onClick={handleGenerateCode}
+            disabled={generatingCode}
+          >
+            {generatingCode ? "Generando..." : "Generar"}
+          </button>
+        </div>
       </div>
+      {codeHint ? <p className={styles.hint}>{codeHint}</p> : null}
 
       <h3 className={styles.fieldLabel}>Nombre:</h3>
       <div className={styles.fieldContainer}>
