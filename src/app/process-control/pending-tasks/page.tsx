@@ -33,6 +33,8 @@ const PendingTasksPage = () => {
         const openRoute = allStepsDone
           ? `/process-control/new-production/${run.productVariant?.productId}/${run.productVariantId}/results?runId=${run.id}`
           : `/process-control/new-production/${run.productVariant?.productId}/${run.productVariantId}/${safeIndex + 1}`;
+        const currentStepWorker = currentStep?.worker?.fullName
+          ?? currentStep?.stepParticipants?.find((participant: any) => participant.worker?.fullName)?.worker?.fullName;
 
         return {
           id: run.id,
@@ -42,7 +44,7 @@ const PendingTasksPage = () => {
           startDate: run.startedAt
             ? new Date(run.startedAt).toLocaleDateString("es-MX")
             : "",
-          startedBy: run.creator?.fullName || "No asignado",
+          startedBy: run.creator?.fullName || currentStepWorker || "No asignado",
           currentStep: allStepsDone ? "Captura de resultados" : currentStep?.templateStep?.name || "Sin paso",
           currentStepNumber: allStepsDone ? orderedSteps.length : safeIndex + 1,
           totalSteps: orderedSteps.length || 0,

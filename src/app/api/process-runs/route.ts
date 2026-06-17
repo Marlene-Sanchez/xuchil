@@ -3,6 +3,7 @@ import prisma from "@/lib/db";
 import {StepStatus} from "@prisma/client";
 import {processRunSchema} from "@/lib/schemas";
 import {notFoundError, serverError, validationError} from "@/utils/responses";
+import {verifySession} from "@/lib/session";
 
 export async function POST(request: Request) {
   try {
@@ -13,6 +14,8 @@ export async function POST(request: Request) {
     }
 
     const validBody = result.data;
+    const payload = await verifySession();
+    const createdByWorkerId = payload?.workerId ?? validBody.createdByWorkerId ?? null;
 
     const template = await prisma.processTemplate.findFirst({
       where: {id: validBody.processTemplateId, isActive: true},
@@ -28,7 +31,7 @@ export async function POST(request: Request) {
         productVariantId: validBody.productVariantId,
         processTemplateId: validBody.processTemplateId,
         batchCode: `BATCH-${Date.now()}`,
-        createdByWorkerId: validBody.createdByWorkerId,
+        createdByWorkerId,
         plannedQty: validBody.plannedQty,
         plannedUnitId: validBody.plannedUnitId,
         status: validBody.status,
@@ -42,7 +45,7 @@ export async function POST(request: Request) {
           create: template.templateSteps.map((s) => ({
             templateStep: {connect: {id: s.id}},
             status: StepStatus.PENDING,
-            workerId: validBody.createdByWorkerId,
+            workerId: createdByWorkerId,
           })),
         },
       },

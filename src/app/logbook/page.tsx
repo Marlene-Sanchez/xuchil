@@ -17,6 +17,7 @@ const Logbook = () => {
   const [selectedProduct, setSelectedProduct] = useState(productFilterOptions[0]);
   const [selectedUser, setSelectedUser]   = useState(userFilterOptions[0]);
   const [selectedMonth, setSelectedMonth] = useState(monthFilterOptions[0]);
+  const [adminUserOptions, setAdminUserOptions] = useState(userFilterOptions);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +46,21 @@ const Logbook = () => {
         if (!mounted) return;
         setIsAdminMode(!!data.isAdmin);
         setCurrentUser(data.worker?.fullName ?? data.email ?? "");
+        if (data.isAdmin) {
+          const usersResponse = await fetch("/api/users", { credentials: "include" });
+          if (!usersResponse.ok) return;
+          const users = await usersResponse.json();
+          if (!mounted) return;
+          setAdminUserOptions([
+            userFilterOptions[0],
+            ...users
+              .filter((user: any) => user.worker?.id)
+              .map((user: any) => ({
+                label: user.worker?.fullName ?? user.email,
+                value: String(user.worker.id),
+              })),
+          ]);
+        }
       } catch {
         return;
       }
@@ -109,7 +125,7 @@ const Logbook = () => {
     }
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProduct, selectedUser, selectedMonth]);
+  }, [isAdminMode, selectedProduct, selectedUser, selectedMonth]);
 
   const userColumns = [
     { key: "tarea",    label: "Tarea" },
@@ -144,7 +160,7 @@ const Logbook = () => {
           {isAdminMode && (
             <FilterButton
               title="Filtrar por usuario"
-              options={userFilterOptions}
+              options={adminUserOptions}
               onChange={setSelectedUser}
             />
           )}

@@ -118,7 +118,7 @@ const UserProfile = () => {
               onClick={() => router.push("/create_user")}
               style={{ width: "100%" }}
             >
-              👥 Administrar y Crear Usuarios
+              Administrar y Crear Usuarios
             </Button>
           </div>
         )}

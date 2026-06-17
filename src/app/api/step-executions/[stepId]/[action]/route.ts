@@ -5,6 +5,7 @@ import { idError, notFoundError, serverError } from "@/utils/responses";
 import { processPauseSchema } from "@/lib/schemas";
 import { consumeForStep, InsufficientStockError } from "@/lib/consumption";
 import { z } from "zod";
+import { verifySession } from "@/lib/session";
 
 export async function POST(
   _req: Request,
@@ -22,10 +23,19 @@ export async function POST(
 
   try {
     const now = new Date();
+    const payload = await verifySession();
+    const workerId = payload?.workerId ?? null;
 
     const currentStep = await prisma.stepExecution.findUnique({
       where: { id: stepId },
-      select: { status: true, startedAt: true, processRunId: true, templateStepId: true, processRun: { select: { status: true } } },
+      select: {
+        status: true,
+        startedAt: true,
+        processRunId: true,
+        templateStepId: true,
+        workerId: true,
+        processRun: { select: { status: true, createdByWorkerId: true } },
+      },
     });
 
     if (!currentStep) {
@@ -74,7 +84,10 @@ export async function POST(
               if (runStatus === ProcessStatus.PLANNED) {
                 runData.startedAt = now;
               }
-              await tx.processRun.update({ where: { id: processRunId }, data: runData });
+              const processRunUpdate = currentStep.processRun.createdByWorkerId == null && workerId
+                ? { ...runData, createdByWorkerId: workerId }
+                : runData;
+              await tx.processRun.update({ where: { id: processRunId }, data: processRunUpdate });
               if (runStatus === ProcessStatus.PAUSED) {
                 const openPause = await tx.processPause.findFirst({
                   where: { processRunId, endedAt: null },
@@ -100,6 +113,7 @@ export async function POST(
               where: { id: stepId },
               data: {
                 status: StepStatus.IN_PROGRESS,
+                ...(workerId ? { workerId } : {}),
                 ...(currentStep.startedAt === null ? { startedAt: now } : {}),
               },
             });

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import styles from "@/styles/FilterButton.module.css";
 import { LucideIcon, ChevronDown } from "lucide-react";
@@ -34,6 +34,10 @@ const FilterButton: React.FC<FilterButtonProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<FilterOption>(options[0]);
+
+  useEffect(() => {
+    setSelectedOption(options[0]);
+  }, [options]);
 
   const handleSelect = (option: FilterOption) => {
     setSelectedOption(option);

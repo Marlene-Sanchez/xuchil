@@ -76,7 +76,7 @@ const DetailProcessContent = () => {
       }
     }
     load();
-  }, [id]);
+  }, [id, isAdminMode]);
 
   return (
     <div className={styles.container}>

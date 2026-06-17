@@ -19,6 +19,13 @@ export async function GET() {
         stepExecutions: {
           include: {
             templateStep: true,
+            worker: true,
+            stepParticipants: {
+              include: {
+                worker: true,
+                guest: true,
+              },
+            },
           },
           orderBy: { id: "asc" },
         },
