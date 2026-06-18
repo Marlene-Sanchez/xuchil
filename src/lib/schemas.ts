@@ -173,6 +173,12 @@ export const rawMaterialSchema = z.strictObject({
     isActive: z.boolean(typeError("isActive", "boolean")).optional()
 })
 
+export const productCategorySchema = z.strictObject({
+    name: z.string(requiredError("name")).min(1, "name cannot be empty."),
+    imageUrl: z.string(typeError("imageUrl", "string")).optional().nullable(),
+    isActive: z.boolean(typeError("isActive", "boolean")).optional()
+})
+
 export const productSchema = z.strictObject({
     categoryId: z.number(requiredError("categoryId")).int(typeError("categoryId", "int")),
     sku: z.string(requiredError("sku")).min(1, "sku cannot be empty."),
