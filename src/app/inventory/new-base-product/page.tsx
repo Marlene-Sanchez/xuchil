@@ -29,8 +29,41 @@ const NewBaseProductPage = () => {
   const [generatingSku, setGeneratingSku] = useState(false);
   const [skuHint, setSkuHint] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateCategory, setShowCreateCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [creatingCategory, setCreatingCategory] = useState(false);
 
   const router = useRouter();
+
+  const handleCreateCategory = async () => {
+    setError(null);
+    if (!newCategoryName.trim()) {
+      setError("El nombre de la categoría es obligatorio.");
+      return;
+    }
+    try {
+      setCreatingCategory(true);
+      const res = await fetch("/api/product-categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ name: newCategoryName.trim(), isActive: true }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || "No se pudo crear la categoría.");
+      }
+      const category = await res.json();
+      setCategories((prev) => [...prev, category]);
+      setCategoryId(String(category.id));
+      setShowCreateCategory(false);
+      setNewCategoryName("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo crear la categoría.");
+    } finally {
+      setCreatingCategory(false);
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -149,6 +182,33 @@ const NewBaseProductPage = () => {
             </option>
           ))}
         </select>
+      </div>
+      <div className={`${styles.fieldContainer} ${styles.centeredControl}`}>
+        {showCreateCategory ? (
+          <div className={styles.codeRow}>
+            <TextField
+              placeholder="Nueva categoría"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+            />
+            <button
+              type="button"
+              className={styles.generateButton}
+              onClick={handleCreateCategory}
+              disabled={creatingCategory}
+            >
+              {creatingCategory ? "Creando..." : "Crear"}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className={styles.generateButton}
+            onClick={() => setShowCreateCategory(true)}
+          >
+            + Crear categoría
+          </button>
+        )}
       </div>
 
       <h3 className={styles.fieldLabel}>Nombre:</h3>

@@ -65,6 +65,39 @@ const NewProcessPage = () => {
   const [skuHint, setSkuHint] = useState<string | null>(null);
   const [creatingProduct, setCreatingProduct] = useState(false);
   const [createProductError, setCreateProductError] = useState<string | null>(null);
+  const [showCreateCategory, setShowCreateCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [creatingCategory, setCreatingCategory] = useState(false);
+
+  const handleCreateCategory = async () => {
+    setCreateProductError(null);
+    if (!newCategoryName.trim()) {
+      setCreateProductError("El nombre de la categoría es obligatorio.");
+      return;
+    }
+    try {
+      setCreatingCategory(true);
+      const res = await fetch("/api/product-categories", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newCategoryName.trim(), isActive: true }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "No se pudo crear la categoría.");
+      }
+      const category = await res.json();
+      setCategories((prev) => [...prev, category]);
+      setNewCategoryId(String(category.id));
+      setShowCreateCategory(false);
+      setNewCategoryName("");
+    } catch (err) {
+      setCreateProductError(err instanceof Error ? err.message : "No se pudo crear la categoría.");
+    } finally {
+      setCreatingCategory(false);
+    }
+  };
   const [processName, setProcessName] = useState("");
   const [processDescription, setProcessDescription] = useState("");
   const [steps, setSteps] = useState<ProcessStep[]>([
@@ -447,6 +480,24 @@ const NewProcessPage = () => {
                       </option>
                     ))}
                   </select>
+                  {showCreateCategory ? (
+                    <div className={styles.quantityGroup}>
+                      <input
+                        type="text"
+                        className={styles.input}
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="Nueva categoría"
+                      />
+                      <Button type="button" action="secondary" size="small" onClick={handleCreateCategory}>
+                        {creatingCategory ? "Creando..." : "Crear"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button type="button" action="secondary" size="small" onClick={() => setShowCreateCategory(true)}>
+                      + Crear categoría
+                    </Button>
+                  )}
                 </div>
                 <div className={styles.inputGroup}>
                   <label className={styles.label}>Nombre del producto</label>
