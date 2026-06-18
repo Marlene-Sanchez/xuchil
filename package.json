@@ -52,10 +52,12 @@
     "jose": "^6.0.10",
     "lucide-react": "^0.476.0",
     "next": "^16.0.5",
+    "prisma": "^6.18.0",
     "react": "^19.1.0",
     "react-datepicker": "^8.3.0",
     "react-dom": "^19.1.0",
     "react-icons": "^5.5.0",
+    "tsx": "^4.20.6",
     "zod": "^4.1.12"
   },
   "devDependencies": {
@@ -72,10 +74,8 @@
     "eslint": "^9.23.0",
     "eslint-config-next": "15.2.1",
     "mocha": "^11.7.5",
-    "prisma": "^6.18.0",
     "selenium-webdriver": "^4.43.0",
     "ts-node": "^10.9.2",
-    "tsx": "^4.20.6",
     "typescript": "^5.8.2",
     "wdio-spec-reporter": "^0.1.5",
     "webdriverio": "^9.27.0"
