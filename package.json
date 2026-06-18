@@ -2,9 +2,15 @@
   "name": "xuchil_project",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "db:provider": "node scripts/set-db-provider.mjs",
+    "postinstall": "pnpm db:provider && prisma generate",
+    "build": "pnpm db:provider && next build",
     "start": "next start",
     "lint": "next lint",
     "test:selenium": "mocha",
