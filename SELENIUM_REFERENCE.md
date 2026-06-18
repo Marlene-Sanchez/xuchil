@@ -7,7 +7,7 @@
 pnpm install
 
 # 2. Resetear base de datos con datos de prueba
-pnpm system:reset:full
+pnpm demo:reset
 
 # 3. Iniciar la aplicación
 pnpm dev
@@ -225,7 +225,7 @@ console.log('Título:', resultado);
 | `Timeout esperando elemento` | Selector incorrecto | Actualizar en `selectors.ts` |
 | `Edge no se abre` | Edge no instalado | Descargar desde microsoft.com |
 | `Conexión rechazada` | Aplicación no está corriendo | Ejecutar `pnpm dev` |
-| `Base de datos vacía` | No hay datos de prueba | Ejecutar `pnpm system:reset:full` |
+| `Base de datos vacía` | No hay datos de prueba | Ejecutar `pnpm demo:reset` |
 | `Prueba muy lenta` | Demasiadas pausas | Reducir `await browser.pause()` |
 
 ---

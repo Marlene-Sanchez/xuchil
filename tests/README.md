@@ -197,7 +197,7 @@ const resultado = await browser.executeScript<string>('return document.title');
 1. **Base de datos configurada y accesible**
    ```bash
    pnpm prisma db push
-   pnpm prisma:seed:users-clean
+   pnpm prisma:seed:demo:users
    ```
 
 2. **Aplicación ejecutándose**

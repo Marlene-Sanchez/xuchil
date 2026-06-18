@@ -11,7 +11,7 @@ pnpm install
 ### Paso 2: Inicializar la base de datos
 ```bash
 # Resetear base de datos y poblarla con datos de prueba
-pnpm system:reset:full
+pnpm demo:reset
 ```
 
 ### Paso 3: Iniciar la aplicación
@@ -189,7 +189,7 @@ await browser.executeScript('return document.title');
 
 ### Base de datos vacía
 ```bash
-pnpm system:reset:full
+pnpm demo:reset
 ```
 
 ## 7. 📊 Próximos Pasos

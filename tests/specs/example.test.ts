@@ -150,7 +150,7 @@ describe('Ejemplo Simple', () => {
  * 
  * 3. REQUISITOS:
  *    - La aplicación debe estar corriendo: pnpm dev
- *    - La base de datos debe estar inicializada: pnpm system:reset:full
+ *    - La base de datos debe estar inicializada: pnpm demo:reset
  *    - Edge debe estar instalado
  * 
  * 4. TIEMPOS DE ESPERA:

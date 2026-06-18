@@ -95,14 +95,14 @@ Recommended startup on a fresh host:
 pnpm install
 pnpm prisma generate
 pnpm prisma db push
-pnpm prisma:seed:users-clean
-pnpm prisma:seed:minimal
-pnpm prisma:seed:processes
+pnpm prisma:seed:clean
 pnpm build
 pnpm start
 ```
 
-Or use `pnpm system:init:prod:start` / `pnpm system:init:prod:offline:start`.
+Or use `pnpm clean:init:prod:start` / `pnpm clean:init:prod:offline:start`.
+
+For demo/test data (development), replace `pnpm prisma:seed:clean` with `pnpm prisma:seed:demo`, or use `pnpm demo:init:prod:start` / `pnpm demo:init:prod:offline:start`.
 
 Serve the app over HTTPS in production. Session cookies are marked `Secure` when `NODE_ENV=production`.
 
