@@ -22,7 +22,7 @@ enum StepStatus {
   PENDING
   IN_PROGRESS
   DONE
-  BLOCKED
+  BLOCKED    //diferente
   SKIPPED
 }
 
@@ -43,7 +43,7 @@ enum ItemType {
   PRODUCT
 }
 
-enum MovementDirection {
+enum MovementDirection { //no existe
   IN
   OUT
 }
@@ -65,22 +65,23 @@ enum ReservationStatus {
 model Unit {
   id           Int     @id @default(autoincrement())
   name         String  @unique
+  products              Product[]
+  rawMaterials          RawMaterial[]
+
   factorToBase Decimal @default("1")
 
   stepRequiredMaterials StepRequiredMaterial[]
-  products              Product[]
   contentUnitVariants   ProductVariant[]       @relation("ContentUnitVariant")
   defaultUnitVariants   ProductVariant[]       @relation("DefaultUnitVariant")
-  rawMaterials          RawMaterial[]
   plannedUnitRuns       ProcessRun[]           @relation("PlannedUnitRun")
   outputUnitRuns        ProcessRun[]           @relation("OutputUnitRun")
   stepExecutions        StepExecution[]
   stepMaterialUsages    StepMaterialUsage[]
+  materialReservations   MaterialReservation[]
   inventoryItems        InventoryItem[]
   inventoryLots         InventoryLot[]
   inventoryMovements    InventoryMovement[]
   orderItems            OrderItem[]
-  materialReservations  MaterialReservation[]
 }
 
 model ProductCategory {
@@ -141,8 +142,8 @@ model RawMaterial {
   defaultUnit           Unit?                  @relation(fields: [defaultUnitId], references: [id])
   stepRequiredMaterials StepRequiredMaterial[]
   stepMaterialUsages    StepMaterialUsage[]
+  materialReservations   MaterialReservation[]
   inventoryItems        InventoryItem[]
-  materialReservations  MaterialReservation[]
 }
 
 model Role {
@@ -247,10 +248,10 @@ model ProcessRun {
   creator            Worker?             @relation(fields: [createdByWorkerId], references: [id])
   plannedUnit        Unit?               @relation("PlannedUnitRun", fields: [plannedUnitId], references: [id])
   outputUnit         Unit?               @relation("OutputUnitRun", fields: [outputUnitId], references: [id])
-  processPauses        ProcessPause[]
-  stepExecutions       StepExecution[]
-  inventoryMovements   InventoryMovement[]
+  processPauses      ProcessPause[]
+  stepExecutions     StepExecution[]
   materialReservations MaterialReservation[]
+  inventoryMovements InventoryMovement[]
 
   @@index([productVariantId])
   @@index([processTemplateId])
@@ -309,50 +310,40 @@ model StepMaterialUsage {
 }
 
 model MaterialReservation {
-  id             Int               @id @default(autoincrement())
-  processRunId   Int
-  templateStepId Int
-  rawMaterialId  Int
-  qty            Decimal
-  unitId         Int
-  status         ReservationStatus @default(RESERVED)
-  createdAt      DateTime          @default(now())
-  consumedAt     DateTime?
-  releasedAt     DateTime?
+  id              Int              @id @default(autoincrement())
+  processRunId    Int
+  templateStepId  Int
+  rawMaterialId   Int
+  qty             Decimal
+  unitId          Int
+  status          ReservationStatus @default(RESERVED)
+  consumedAt      DateTime?
+  releasedAt      DateTime?
 
   processRun   ProcessRun   @relation(fields: [processRunId], references: [id])
-  templateStep TemplateStep @relation(fields: [templateStepId], references: [id])
+  templateStep TemplateStep  @relation(fields: [templateStepId], references: [id])
   rawMaterial  RawMaterial  @relation(fields: [rawMaterialId], references: [id])
   unit         Unit         @relation(fields: [unitId], references: [id])
 
-  @@index([rawMaterialId, status])
   @@index([processRunId])
+  @@index([templateStepId])
+  @@index([rawMaterialId])
+  @@index([status])
 }
 
-model GuestCollaborator {
-  id               Int               @id @default(autoincrement())
-  displayName      String
-  contactInfo      String?
-  passwordHash     String?
-  isActive         Boolean           @default(true)
-  stepParticipants StepParticipant[]
-}
 
 model StepParticipant {
   id              Int       @id @default(autoincrement())
   stepExecutionId Int
   workerId        Int?
-  guestId         Int?
   roleInStep      String?
   startedAt       DateTime?
   finishedAt      DateTime?
 
   stepExecution StepExecution      @relation(fields: [stepExecutionId], references: [id])
   worker        Worker?            @relation(fields: [workerId], references: [id])
-  guest         GuestCollaborator? @relation(fields: [guestId], references: [id])
 
   @@index([stepExecutionId, workerId])
-  @@index([stepExecutionId, guestId])
 }
 
 model InventoryItem {

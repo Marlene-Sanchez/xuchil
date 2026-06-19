@@ -251,7 +251,10 @@ const ProcessStepPage = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ productVariantId: numericVariantId, processTemplateId: templateId }),
       });
-      if (!runRes.ok) throw new Error("No se pudo crear el proceso.");
+      if (!runRes.ok) {
+        const err = await runRes.json().catch(() => ({}));
+        throw new Error(err.error || err.details?.message || "No se pudo crear el proceso.");
+      }
       const newRun = await runRes.json();
 
       // Reserve materials for EVERY step up front (not just the first one).
