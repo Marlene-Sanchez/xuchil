@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import React, { useState, useEffect, useCallback } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import HeaderXuchil from "@/components/HeaderXuchil";
 import Chronometer from "@/components/Chronometer";
 import BottomButton from "@/components/BottomButton";
@@ -12,6 +12,9 @@ import { ProductVariant } from "@/types/ProductVariant";
 const ProcessStepPage = () => {
   const { productId, variantId, stepId } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Template chosen on the selector screen (carried through every step).
+  const templateIdParam = searchParams.get("templateId");
 
   const [currentVariant, setCurrentVariant] = useState<ProductVariant | null>();
   const [steps, setSteps] = useState<ProcessStep[]>([]);
@@ -21,7 +24,8 @@ const ProcessStepPage = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // API-linked state
-  const [stepExecutionId, setStepExecutionId] = useState<number | null>(null);
+  // Value tracked only via stepExecIdRef; the setter is kept to trigger re-renders.
+  const [, setStepExecutionId] = useState<number | null>(null);
   const [processRunId, setProcessRunId] = useState<number | null>(null);
   const [stepStatus, setStepStatus] = useState<string>("PENDING");
   const [initialTime, setInitialTime] = useState(0);
@@ -67,22 +71,47 @@ const ProcessStepPage = () => {
         imageSrc: variant.imageUrl || "/globe.svg",
       };
 
-      const templatesRes = await fetch(`/api/process-templates?product_variant_id=${variant.id}`, { credentials: "include" });
-      if (!templatesRes.ok) {
-        if (mounted) setLoadError("No se pudieron cargar las plantillas de proceso.");
-        return;
-      }
-      const templates = await templatesRes.json();
-      const activeTemplate = templates.find((template: any) => template.isActive) || templates[0];
-      if (!activeTemplate) {
-        if (mounted) {
-          setCurrentVariant(mappedVariant);
-          setLoadError("Este producto no tiene un proceso de producción configurado. Ve a configuración para crear una plantilla.");
-        }
-        return;
+      // Load active runs first: a resume link may not carry templateId, in which
+      // case the template is derived from the run already in progress.
+      const pendingRes = await fetch("/api/process-runs/pending", { credentials: "include" });
+      const pendingRuns = pendingRes.ok ? await pendingRes.json() : [];
+
+      // Resolve which process template to execute, in priority order:
+      // 1) explicit selection from the selector screen (templateId query param),
+      // 2) the template of an active run for this variant (resume),
+      // 3) the active template configured for the variant (legacy fallback).
+      let chosenTemplateId: number | null = templateIdParam ? parseInt(templateIdParam, 10) : null;
+
+      const activeRun =
+        pendingRuns.find(
+          (run: any) =>
+            String(run.productVariantId) === stringVariantId &&
+            (chosenTemplateId == null || run.processTemplateId === chosenTemplateId)
+        ) || null;
+
+      if (chosenTemplateId == null && activeRun) {
+        chosenTemplateId = activeRun.processTemplateId;
       }
 
-      const templateDetailRes = await fetch(`/api/process-templates/${activeTemplate.id}`, { credentials: "include" });
+      if (chosenTemplateId == null) {
+        const templatesRes = await fetch(`/api/process-templates?product_variant_id=${variant.id}`, { credentials: "include" });
+        if (!templatesRes.ok) {
+          if (mounted) setLoadError("No se pudieron cargar las plantillas de proceso.");
+          return;
+        }
+        const templates = await templatesRes.json();
+        const activeTemplate = templates.find((template: any) => template.isActive) || templates[0];
+        if (!activeTemplate) {
+          if (mounted) {
+            setCurrentVariant(mappedVariant);
+            setLoadError("Este producto no tiene un proceso de producción configurado. Ve a configuración para crear una plantilla.");
+          }
+          return;
+        }
+        chosenTemplateId = activeTemplate.id;
+      }
+
+      const templateDetailRes = await fetch(`/api/process-templates/${chosenTemplateId}`, { credentials: "include" });
       if (!templateDetailRes.ok) {
         if (mounted) setLoadError("No se pudo cargar el detalle de la plantilla.");
         return;
@@ -114,20 +143,16 @@ const ProcessStepPage = () => {
       }
 
       if (mounted) {
-        setTemplateId(activeTemplate.id);
+        setTemplateId(chosenTemplateId);
       }
 
-      // Load active process run for this variant
-      let foundRun: any = null;
-      const pendingRes = await fetch("/api/process-runs/pending", { credentials: "include" });
-      if (pendingRes.ok) {
-        const pendingRuns = await pendingRes.json();
-        const activeRun = pendingRuns.find((run: any) => String(run.productVariantId) === stringVariantId);
-        if (activeRun) {
-          foundRun = activeRun;
-          if (mounted) {
-            setProcessRunId(activeRun.id);
-          }
+      // Active process run for this variant+template (resolved above).
+      const foundRun: any = activeRun;
+      if (foundRun) {
+        if (mounted) {
+          setProcessRunId(activeRun.id);
+        }
+        {
           // Step executions are ordered by id (same order as template steps)
           const orderedExecs = [...(activeRun.stepExecutions || [])];
           const stepExec = orderedExecs[positionIndex];
@@ -195,7 +220,7 @@ const ProcessStepPage = () => {
     return () => {
       mounted = false;
     };
-  }, [productId, variantId, stepId]);
+  }, [productId, variantId, stepId, templateIdParam]);
 
   const callStepActionDirect = async (execId: number, action: string, body?: object) => {
     try {
@@ -227,8 +252,15 @@ const ProcessStepPage = () => {
   }, []);
 
   const templateNeedsMaterials = steps.some((s) => (s.materials?.length ?? 0) > 0);
+  // The run has begun once any step has been started/finished. Tie the
+  // reservation prompt to whether the run actually holds reservations (not to
+  // the mere existence of a stepExecution), so a half-created PLANNED run from a
+  // failed reservation still asks to reserve instead of silently running
+  // without apartar/consumir materia prima.
+  const runStarted =
+    stepStatus === "IN_PROGRESS" || stepStatus === "BLOCKED" || stepStatus === "DONE" || hasStarted;
   const needsReservation =
-    !stepExecutionId && !runHasReservations && templateNeedsMaterials && stepIndex === 0;
+    !runHasReservations && !runStarted && templateNeedsMaterials && stepIndex === 0;
   const currentStepHasMaterials = (currentStep?.materials?.length ?? 0) > 0;
 
   // Build the consumption body for a step from a quantity map keyed by rawMaterialId.
@@ -244,18 +276,29 @@ const ProcessStepPage = () => {
     setPanelError(null);
     setReserving(true);
     try {
-      const numericVariantId = parseInt(variantId as string, 10);
-      const runRes = await fetch("/api/process-runs", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productVariantId: numericVariantId, processTemplateId: templateId }),
-      });
-      if (!runRes.ok) {
-        const err = await runRes.json().catch(() => ({}));
-        throw new Error(err.error || err.details?.message || "No se pudo crear el proceso.");
+      // Reuse the PLANNED run if one already exists (e.g. a previous reservation
+      // attempt failed and left it behind); only create a new run otherwise.
+      // This prevents orphan runs from piling up and the "no se pudo crear el
+      // proceso" error when a run is already in place.
+      let runId = processRunId;
+      let createdStepExecs: any[] | null = null;
+      if (!runId) {
+        const numericVariantId = parseInt(variantId as string, 10);
+        const runRes = await fetch("/api/process-runs", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ productVariantId: numericVariantId, processTemplateId: templateId }),
+        });
+        if (!runRes.ok) {
+          const err = await runRes.json().catch(() => ({}));
+          throw new Error(err.error || err.details?.message || "No se pudo crear el proceso.");
+        }
+        const newRun = await runRes.json();
+        runId = newRun.id;
+        createdStepExecs = newRun.stepExecutions || [];
+        setProcessRunId(newRun.id);
       }
-      const newRun = await runRes.json();
 
       // Reserve materials for EVERY step up front (not just the first one).
       const items: Array<{ templateStepId: number; rawMaterialId: number; qty: number; unitId: number }> = [];
@@ -267,7 +310,7 @@ const ProcessStepPage = () => {
       }
 
       if (items.length > 0) {
-        const reserveRes = await fetch(`/api/process-runs/${newRun.id}/reserve`, {
+        const reserveRes = await fetch(`/api/process-runs/${runId}/reserve`, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
@@ -283,15 +326,15 @@ const ProcessStepPage = () => {
         }
       }
 
-      // Run created and everything reserved. Leave the first step PENDING; the
+      // Run in place and everything reserved. Leave the first step PENDING; the
       // user starts it manually with INICIAR (consuming only that step then).
-      const orderedExecs = newRun.stepExecutions || [];
-      const stepExec = orderedExecs[stepIndex];
-      if (stepExec) {
-        stepExecIdRef.current = stepExec.id;
-        setStepExecutionId(stepExec.id);
+      if (createdStepExecs) {
+        const stepExec = createdStepExecs[stepIndex];
+        if (stepExec) {
+          stepExecIdRef.current = stepExec.id;
+          setStepExecutionId(stepExec.id);
+        }
       }
-      setProcessRunId(newRun.id);
       setRunHasReservations(true);
       setStepStatus("PENDING");
       if (currentStep) setConsumeQty(reserveStepQty(currentStep));
@@ -390,10 +433,11 @@ const ProcessStepPage = () => {
     setStepStatus("DONE");
     // Call finish - API handles both IN_PROGRESS and BLOCKED states
     await callStepAction("finish");
-    // Navigate forward
+    // Navigate forward, preserving the chosen template across steps.
+    const templateQuery = templateId ? `?templateId=${templateId}` : "";
     const nextPosition = stepIndex + 2;
     if (stepIndex < steps.length - 1) {
-      router.push(`/process-control/new-production/${productId}/${variantId}/${nextPosition}`);
+      router.push(`/process-control/new-production/${productId}/${variantId}/${nextPosition}${templateQuery}`);
     } else {
       const route = processRunId
         ? `/process-control/new-production/${productId}/${variantId}/results?runId=${processRunId}`
@@ -494,4 +538,17 @@ const ProcessStepPage = () => {
   );
 };
 
-export default ProcessStepPage;
+const ProcessStepPageWithSuspense = () => (
+  <Suspense
+    fallback={
+      <div className="page">
+        <HeaderXuchil />
+        <p>Cargando información del proceso...</p>
+      </div>
+    }
+  >
+    <ProcessStepPage />
+  </Suspense>
+);
+
+export default ProcessStepPageWithSuspense;

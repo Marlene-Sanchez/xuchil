@@ -56,7 +56,7 @@ const ProductDetailPage = () => {
             imageSrc={variant.imageSrc}
             text={variant.name}
             type="small"
-            route={`/process-control/new-production/${productId}/${variant.id}/1`}
+            route={`/process-control/new-production/${productId}/${variant.id}`}
           />
         ))}
       </div>
