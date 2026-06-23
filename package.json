@@ -4,13 +4,13 @@
   "private": true,
   "packageManager": "pnpm@10.32.1",
   "engines": {
-    "node": ">=22"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "next dev --turbopack",
     "db:provider": "node scripts/set-db-provider.mjs",
     "postinstall": "pnpm db:provider && prisma generate",
-    "build": "pnpm db:provider && next build",
+    "build": "pnpm db:provider && prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "test:selenium": "mocha",
