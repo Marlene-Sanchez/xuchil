@@ -30,13 +30,9 @@ const OrderedProducts: React.FC<OrderedProductsProps> = ({ products }) => {
         />
       ))}
 
-      <button
-        type="button"
-        className={styles.addBtn}
-        onClick={addOrder}
-        aria-label="Añadir producto"
-      >
-        <Plus size={32} strokeWidth={2.5} />
+      <button type="button" className={styles.addBtn} onClick={addOrder}>
+        <Plus size={18} strokeWidth={2.5} />
+        <span>Agregar producto</span>
       </button>
     </div>
   );

@@ -86,7 +86,7 @@
 }
 
 .section {
-  background: #ffffff;
+  background: #f3f3f3;
   border-radius: 16px;
   padding: 1.25rem;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
@@ -135,7 +135,7 @@
   padding: 0.75rem;
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  background: white;
+  background: #f3f3f3;
   font-size: 0.875rem;
   min-width: 80px;
   width: 100%;

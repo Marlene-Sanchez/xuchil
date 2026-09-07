@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import HeaderXuchil from "@/components/HeaderXuchil";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import Button from "@/components/Button";
 import Modal from "@/components/Modal";
+import styles from "./CreateUser.module.css";
 
 const CreateUser = () => {
   const router = useRouter();
@@ -143,128 +144,111 @@ const CreateUser = () => {
     if (!modal.error) router.push("/user");
   };
 
+  const datos = [
+    { id: "nombre", label: "Nombre", type: "text", placeholder: "Nombre", value: name, set: setName },
+    { id: "apellido-paterno", label: "Apellido paterno", type: "text", placeholder: "Apellido paterno", value: lastName, set: setLastName },
+    { id: "apellido-materno", label: "Apellido materno", type: "text", placeholder: "Apellido materno", value: secondLastName, set: setSecondLastName },
+    { id: "telefono", label: "Teléfono", type: "tel", placeholder: "+52 951 000 00 00", value: phone, set: setPhone },
+    { id: "correo", label: "Correo electrónico", type: "email", placeholder: "correo@ejemplo.com", value: email, set: setEmail },
+    { id: "usuario", label: "Usuario", type: "text", placeholder: "Nombre de usuario", value: username, set: setUsername },
+  ];
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "var(--color-background)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        paddingTop: "1rem",
-      }}
-    >
-      <HeaderXuchil />
+    <div className={styles.wrapper}>
+      <header className={styles.head}>
+        <button
+          type="button"
+          className={styles.back}
+          onClick={() => router.push("/user")}
+          aria-label="Volver al perfil"
+        >
+          <ArrowLeft size={20} />
+        </button>
 
-      <div
-        style={{
-          width: "90%",
-          maxWidth: "360px",
-          backgroundColor: "var(--color-background)",
-          padding: "24px",
-          borderRadius: "20px",
-        }}
-      >
-        <h2 style={{ textAlign: "center", marginBottom: "1rem" }}>
-          Crear nuevo usuario
-        </h2>
+        <h1 className={styles.title}>Crear usuario</h1>
+      </header>
 
-        {[
-          { label: "Nombre", value: name, set: setName },
-          { label: "Apellido Paterno", value: lastName, set: setLastName },
-          { label: "Apellido Materno", value: secondLastName, set: setSecondLastName },
-          { label: "Teléfono", value: phone, set: setPhone },
-          { label: "Correo", value: email, set: setEmail },
-          { label: "Usuario", value: username, set: setUsername },
-        ].map((field, idx) => (
-          <div key={idx} style={{ marginBottom: "12px" }}>
-            <label>{field.label}:</label>
+      <p className={styles.sectionLabel}>Datos del usuario</p>
+
+      <section className={styles.card}>
+        {datos.map((campo) => (
+          <div className={styles.field} key={campo.id}>
+            <label className={styles.label} htmlFor={campo.id}>
+              {campo.label}
+            </label>
             <input
-              type="text"
-              value={field.value}
-              onChange={(e) => field.set(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "10px",
-                borderRadius: "10px",
-                border: "1px solid #333",
-                marginTop: "4px",
-                boxSizing: "border-box",
-              }}
+              id={campo.id}
+              type={campo.type}
+              inputMode={campo.type === "tel" ? "tel" : undefined}
+              className={styles.input}
+              placeholder={campo.placeholder}
+              value={campo.value}
+              onChange={(e) => campo.set(e.target.value)}
             />
           </div>
         ))}
+      </section>
 
-        <div style={{ marginBottom: "12px" }}>
-          <label>Contraseña:</label>
-          <input
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "10px",
-              border: "1px solid #333",
-              marginTop: "4px",
-              boxSizing: "border-box",
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            style={{
-              marginTop: "4px",
-              background: "none",
-              color: "var(--color-green-dark)",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "0.9rem",
-              textDecoration: "underline",
-            }}
-          >
-            {showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-          </button>
+      <p className={styles.sectionLabel}>Contraseña</p>
+
+      <section className={styles.card}>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="password">
+            Contraseña
+          </label>
+          <div className={styles.passwordWrap}>
+            <input
+              id="password"
+              type={showPassword ? "text" : "password"}
+              className={styles.input}
+              placeholder="Mínimo 8 caracteres"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button
+              type="button"
+              className={styles.reveal}
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+          <p className={styles.hint}>
+            Al menos 8 caracteres, una mayúscula, una minúscula y un número.
+          </p>
         </div>
 
-        <div style={{ marginBottom: "20px" }}>
-          <label>Confirmar Contraseña:</label>
-          <input
-            type={showConfirmPassword ? "text" : "password"}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "10px",
-              border: "1px solid #333",
-              marginTop: "4px",
-              boxSizing: "border-box",
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            style={{
-              marginTop: "4px",
-              background: "none",
-              color: "var(--color-green-dark)",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "0.9rem",
-              textDecoration: "underline",
-            }}
-          >
-            {showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-          </button>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="confirm-password">
+            Confirmar contraseña
+          </label>
+          <div className={styles.passwordWrap}>
+            <input
+              id="confirm-password"
+              type={showConfirmPassword ? "text" : "password"}
+              className={styles.input}
+              placeholder="Repite la contraseña"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+            <button
+              type="button"
+              className={styles.reveal}
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              aria-label={showConfirmPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+            >
+              {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
         </div>
+      </section>
 
-        <Button
-          size="regular"
-          action="primary"
-          onClick={handleCreateUser}
-          style={{ width: "100%", marginBottom: "50px" }}
-        >
+      <div className={styles.actions}>
+        <Button size="regular" action="outline" onClick={() => router.push("/user")}>
+          Cancelar
+        </Button>
+        <Button size="regular" action="primary" onClick={handleCreateUser}>
           Crear usuario
         </Button>
       </div>

@@ -93,7 +93,7 @@ const Login = () => {
         >
           <h1
             style={{
-              color: "white",
+              color: "#f3f3f3",
               fontWeight: "bold",
               fontSize: "1.8rem",
               marginBottom: "16px",

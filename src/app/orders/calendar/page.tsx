@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight, X as CloseIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, X as CloseIcon, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import DeliveryType from "@/components/DeliveryType";
-import BottomButton from "@/components/BottomButton";
 import { fetchOrdersClient } from "@/lib/ordersClient";
 import { Order } from "@/types/Order";
 import OrderCard from "@/components/OrderCard";
+import HeaderNavigator from "@/components/HeaderNavigator";
+import { orderTabs } from "@/constants/navTabs";
 import { keyFromLocalDate, parseMXDateLocal } from "@/utils/date";
 
 import styles from "./Calendar.module.css";
@@ -152,7 +153,11 @@ const Calendar = () => {
     router.push("/orders/deliveries/new-order");
 
   return (
-    <>
+    <div className={styles.page}>
+      <h1 className={styles.pageTitle}>Pedidos</h1>
+
+      <HeaderNavigator tabs={orderTabs} variant="full" />
+
       <div
         className={`${styles.calendarLayout} ${
           hasOrders ? styles.twoColumn : ""
@@ -312,8 +317,12 @@ const Calendar = () => {
             </div>
           )}
       </div>
-      <BottomButton onClick={handleNewOrder}>Nuevo Pedido</BottomButton>
-    </>
+
+      <button type="button" className={styles.addBtn} onClick={handleNewOrder}>
+        <Plus size={20} strokeWidth={2.5} />
+        <span>Nuevo pedido</span>
+      </button>
+    </div>
   );
 };
 

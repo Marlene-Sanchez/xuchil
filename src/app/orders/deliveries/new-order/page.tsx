@@ -2,16 +2,20 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import HeaderXuchil from "@/components/HeaderXuchil";
-import BottomButton from "@/components/BottomButton";
-import DeliveryType from "@/components/DeliveryType";
 import TextField from "@/components/TextField";
 import DatePicker from "@/components/DatePicker";
 import OrderedProducts from "@/components/OrderedProducts";
+import Button from "@/components/Button";
 import { Product } from "@/types/Product";
-import { deliveryVariants } from "@/constants/deliveryConfig";
+import { deliveryVariants, availableVariants } from "@/constants/deliveryConfig";
 import { fetchProducts } from "@/constants/api";
 import styles from "./NewOrder.module.css";
+
+const shortDeliveryLabels: Record<keyof typeof deliveryVariants, string> = {
+  mail: "Correo",
+  personal: "Personal",
+  consignment: "Consignación",
+};
 
 const NewOrderPage = () => {
   const products: Product[] = useMemo(fetchProducts, []);
@@ -36,46 +40,72 @@ const NewOrderPage = () => {
   };
 
   return (
-    <div className={styles.wrapper}>
-      <HeaderXuchil />
+    <div className="page">
 
-      <h1 className={styles.title}>Nuevo Pedido</h1>
+      <div className={styles.card}>
+        <h1 className={styles.title}>Nuevo pedido</h1>
 
-      <div className={styles.deliveryType}>
-        <DeliveryType
-          variant={deliveryVariant}
-          type="picker"
-          size="sm"
-        />
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="cliente">
+            Cliente
+          </label>
+          <input
+            id="cliente"
+            type="text"
+            className={styles.input}
+            placeholder="Nombre del cliente"
+            value={clientName}
+            onChange={(e) => setClientName(e.target.value)}
+          />
+        </div>
+
+        <div className={styles.field}>
+          <span className={styles.label}>Método de entrega</span>
+          <div className={styles.segment} role="radiogroup" aria-label="Método de entrega">
+            {availableVariants.map((variant) => (
+              <button
+                key={variant}
+                type="button"
+                role="radio"
+                aria-checked={deliveryVariant === variant}
+                className={`${styles.segmentOption} ${
+                  deliveryVariant === variant ? styles.segmentActive : ""
+                }`}
+                onClick={() => setDeliveryVariant(variant)}
+              >
+                {shortDeliveryLabels[variant]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.field}>
+          <span className={styles.label}>Fecha de entrega</span>
+          <DatePicker value={deliveryDate} onChange={setDeliveryDate} />
+        </div>
+
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="direccion">
+            Dirección de entrega
+          </label>
+          <TextField
+            id="direccion"
+            block
+            placeholder="Calle, número, colonia, ciudad"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+          />
+        </div>
+
+        <div className={styles.field}>
+          <span className={styles.label}>Productos</span>
+          <OrderedProducts products={products} />
+        </div>
+
+        <div className={styles.submit}>
+          <Button onClick={handleSubmit}>Crear pedido</Button>
+        </div>
       </div>
-
-      <h3>Cliente:</h3>
-      <div className={styles.fieldContainer}>
-        <TextField
-          placeholder="Nombre del cliente"
-          value={clientName}
-          onChange={(e) => setClientName(e.target.value)}
-        />
-      </div>
-
-      <h3>Fecha de entrega:</h3>
-      <div className={styles.fieldContainer}>
-        <DatePicker value={deliveryDate} onChange={setDeliveryDate} />
-      </div>
-
-      <h3>Dirección de entrega:</h3>
-      <div className={styles.fieldContainer}>
-        <TextField
-          placeholder="Dirección completa"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-        />
-      </div>
-
-      <h3>Productos:</h3>
-      <OrderedProducts products={products} />
-
-      <BottomButton onClick={handleSubmit}>Finalizar registro</BottomButton>
     </div>
   );
 };

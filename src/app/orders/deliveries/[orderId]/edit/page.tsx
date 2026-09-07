@@ -2,8 +2,6 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-
-import HeaderXuchil from "@/components/HeaderXuchil";
 import BottomButton from "@/components/BottomButton";
 import Button from "@/components/Button";
 import DeliveryType from "@/components/DeliveryType";
@@ -104,8 +102,6 @@ const EditOrderPage = () => {
             Eliminar
           </Button>
         </div>
-
-        <HeaderXuchil />
 
         <h1 className={styles.title}>Pedido #{order.id}</h1>
 

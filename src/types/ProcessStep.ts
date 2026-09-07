@@ -1,9 +1,9 @@
 export interface ProcessStep {
     id: number;
     title: string;
-    estimatedTime: number; 
+    estimatedTime: number;
     hasInput: boolean;
-    unit?: string;         
+    inputType?: "number" | "text";
+    unit?: string;
     description?: string;
   }
-  

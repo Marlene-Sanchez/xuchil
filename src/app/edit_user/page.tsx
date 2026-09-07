@@ -1,9 +1,10 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import HeaderXuchil from "@/components/HeaderXuchil";
+import { ArrowLeft } from "lucide-react";
 import Button from "@/components/Button";
 import Modal from "@/components/Modal";
+import styles from "./EditUser.module.css";
 
 const EditProfile = () => {
   const router = useRouter();
@@ -21,19 +22,19 @@ const EditProfile = () => {
   useEffect(() => {
     const storedUserData = localStorage.getItem("userData");
     const username = localStorage.getItem("currentUser");
-    
+
     if (storedUserData && username) {
       const parsedData = JSON.parse(storedUserData);
       setUserData(parsedData);
       setCurrentUsername(username);
-      
+
       const nameParts = parsedData.name.split(" ");
       setName(nameParts[0] || "");
       setLastName(nameParts.slice(1).join(" ") || "");
-      
+
       setEmail(parsedData.email || "");
       setPhone(parsedData.phone || "");
-      setAvatarPreview(parsedData.avatar || "/user-placeholder.svg");
+      setAvatarPreview(parsedData.avatar || "");
     } else {
       router.push("/login");
     }
@@ -84,7 +85,7 @@ const EditProfile = () => {
     };
 
     localStorage.setItem("userData", JSON.stringify(updatedUserData));
-    
+
     localStorage.setItem(`userProfile_${username}`, JSON.stringify({
       name: `${name} ${lastName}`.trim(),
       email,
@@ -93,7 +94,7 @@ const EditProfile = () => {
       position: userData.position,
       hours: userData.hours
     }));
-    
+
     setShowSuccessModal(true);
   };
 
@@ -102,141 +103,135 @@ const EditProfile = () => {
     router.push("/user");
   };
 
+  const iniciales = `${name} ${lastName}`
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p.charAt(0).toUpperCase())
+    .join("") || "?";
+
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        backgroundColor: "var(--color-background)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        paddingTop: "1rem",
-      }}
-    >
-      <HeaderXuchil />
-
-      <div
-        style={{
-          width: "90%",
-          maxWidth: "360px",
-          backgroundColor: "var(--color-background)",
-          padding: "24px",
-          borderRadius: "20px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          boxSizing: "border-box",
-        }}
-      >
-        <img
-          src={avatarPreview}
-          alt="Foto de perfil"
-          style={{
-            width: "140px",
-            height: "140px",
-            borderRadius: "50%",
-            backgroundColor: "#ccc",
-            marginBottom: "12px",
-            textAlign: "center",
-            objectFit: "cover",
-          }}
-        />
-
-        <input
-          type="file"
-          id="avatar-upload"
-          ref={fileInputRef}
-          accept="image/*"
-          onChange={handleImageChange}
-          style={{ display: "none" }}
-        />
-        
-        <Button
-          size="small"
-          action="secondary"
-          onClick={handleImageUploadClick}
-          style={{ marginBottom: "20px" }}
+    <div className={styles.wrapper}>
+      <header className={styles.head}>
+        <button
+          type="button"
+          className={styles.back}
+          onClick={() => router.push("/user")}
+          aria-label="Volver al perfil"
         >
-          Subir Foto
-        </Button>
+          <ArrowLeft size={20} />
+        </button>
 
-        <div
-          style={{
-            width: "100%",
-            marginTop: "20px",
-            paddingLeft: "8px",
-            paddingRight: "8px",
-            boxSizing: "border-box",
-          }}
-        >
-          <label>Nombre:</label>
+        <h1 className={styles.title}>Editar perfil</h1>
+      </header>
+
+      <section className={styles.card}>
+        <div className={styles.identity}>
+          {avatarPreview ? (
+            <img
+              className={styles.avatar}
+              src={avatarPreview}
+              alt="Foto de perfil"
+            />
+          ) : (
+            <span className={styles.avatarFallback} aria-hidden="true">
+              {iniciales}
+            </span>
+          )}
+
+          <div className={styles.identityText}>
+            <p className={styles.identityName}>
+              {`${name} ${lastName}`.trim() || "Sin nombre"}
+            </p>
+
+            <input
+              type="file"
+              id="avatar-upload"
+              ref={fileInputRef}
+              accept="image/*"
+              onChange={handleImageChange}
+              className={styles.hidden}
+            />
+
+            <div className={styles.photoBtn}>
+              <Button
+                size="small"
+                action="outline"
+                onClick={handleImageUploadClick}
+              >
+                Cambiar foto
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.card}>
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="nombre">
+            Nombre
+          </label>
           <input
+            id="nombre"
             type="text"
+            className={styles.input}
+            placeholder="Nombre"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "10px",
-              border: "1px solid #333",
-              marginBottom: "12px",
-              boxSizing: "border-box",
-            }}
-          />
-
-          <label>Apellido:</label>
-          <input
-            type="text"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "10px",
-              border: "1px solid #333",
-              marginBottom: "12px",
-              boxSizing: "border-box",
-            }}
-          />
-
-          <label>Correo Electrónico:</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "10px",
-              border: "1px solid #333",
-              marginBottom: "12px",
-              boxSizing: "border-box",
-            }}
-          />
-
-          <label>Teléfono:</label>
-          <input
-            type="text"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "10px",
-              border: "1px solid #333",
-              marginBottom: "20px",
-              boxSizing: "border-box",
-            }}
           />
         </div>
 
-        <Button
-          size="regular"
-          action="primary"
-          onClick={handleSave}
-          style={{ marginTop: "10px", marginBottom: "50px", width: "100%" }}
-        >
-          Listo
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="apellido">
+            Apellido
+          </label>
+          <input
+            id="apellido"
+            type="text"
+            className={styles.input}
+            placeholder="Apellido"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+          />
+        </div>
+
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="correo">
+            Correo electrónico
+          </label>
+          <input
+            id="correo"
+            type="email"
+            className={styles.input}
+            placeholder="correo@ejemplo.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor="telefono">
+            Teléfono
+          </label>
+          <input
+            id="telefono"
+            type="tel"
+            inputMode="tel"
+            className={styles.input}
+            placeholder="+52 951 000 00 00"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+          />
+        </div>
+      </section>
+
+      <div className={styles.actions}>
+        <Button size="regular" action="outline" onClick={() => router.push("/user")}>
+          Cancelar
+        </Button>
+        <Button size="regular" action="primary" onClick={handleSave}>
+          Guardar
         </Button>
       </div>
 

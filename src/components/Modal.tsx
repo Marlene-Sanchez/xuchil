@@ -43,7 +43,7 @@ const Modal: React.FC<ModalProps> = ({
     >
       <div
         style={{
-          backgroundColor: "#fff",
+          backgroundColor: "#f3f3f3",
           borderRadius: "10px",
           padding: "24px",
           width: width, // Usamos la prop width

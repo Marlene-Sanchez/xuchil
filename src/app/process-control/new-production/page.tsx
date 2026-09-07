@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import ImageCard from "@/components/ImageCard";
-import HeaderXuchil from "@/components/HeaderXuchil";
 import { fetchProductCategories } from "@/constants/api";
 import styles from "./NewProduction.module.css";
 
@@ -16,7 +15,6 @@ const NewProductionPage = () => {
 
   return (
     <div className="page">
-      <HeaderXuchil />
       <h1>¿Qué producto haremos hoy?</h1>
       
       <div className={styles.container}>

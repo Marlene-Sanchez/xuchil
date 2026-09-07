@@ -4,7 +4,9 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import OrderCard from "@/components/OrderCard";
 import FilterButton from "@/components/FilterButton";
-import BottomButton from "@/components/BottomButton";
+import HeaderNavigator from "@/components/HeaderNavigator";
+import { orderTabs } from "@/constants/navTabs";
+import { Plus } from "lucide-react";
 import { Order } from "@/types/Order";
 import { fetchOrdersClient } from "@/lib/ordersClient";
 import {
@@ -102,24 +104,52 @@ const Deliveries = () => {
   };
 
   return (
-    <div className={`${styles.wrapper} page`}>
-      <div className={styles.filters}>
-        <FilterButton title="Filtrar por fecha" options={dateFilterOptions} onChange={setDateFilter} variant="dark"/>
-        <FilterButton title="Ordenar" options={sortFilterOptions} onChange={setSortFilter} variant="dark"/>
-        <FilterButton title="Tipo de entrega" options={deliveryFilterOptions} onChange={setDeliveryFilter} variant="dark"/>
+    <div className={styles.wrapper}>
+      <h1 className={styles.title}>Pedidos</h1>
+
+      <HeaderNavigator tabs={orderTabs} variant="full" />
+
+      <div className={styles.toolbar}>
+        <div className={styles.filters}>
+          <FilterButton title="Filtrar por fecha" options={dateFilterOptions} onChange={setDateFilter} variant="outline"/>
+          <FilterButton title="Ordenar" options={sortFilterOptions} onChange={setSortFilter} variant="outline"/>
+          <FilterButton title="Tipo de entrega" options={deliveryFilterOptions} onChange={setDeliveryFilter} variant="outline"/>
+        </div>
       </div>
-      <div className={styles.scrollArea}>
+
+      <div className={styles.list}>
         {loading ? (
           <p className={styles.empty}>Cargando pedidos...</p>
         ) : visibleOrders.length === 0 ? (
-          <p className={styles.empty}>Sin pedidos encontrados</p>
+          <button
+            type="button"
+            className={styles.emptyState}
+            onClick={handleNewOrder}
+          >
+            <span className={styles.emptyIcon}>
+              <Plus size={64} strokeWidth={1.5} />
+            </span>
+            <span className={styles.emptyText}>
+              Sin pedidos encontrados, haz click para agregar uno
+            </span>
+          </button>
         ) : (
-          visibleOrders.map((order) => (
-            <OrderCard key={order.id} {...order} />
-          ))
+          <>
+            {visibleOrders.map((order) => (
+              <OrderCard key={order.id} {...order} />
+            ))}
+
+            <button
+              type="button"
+              className={styles.addBtn}
+              onClick={handleNewOrder}
+            >
+              <Plus size={20} strokeWidth={2.5} />
+              <span>Nuevo pedido</span>
+            </button>
+          </>
         )}
       </div>
-      <BottomButton onClick={handleNewOrder}>Nuevo Pedido</BottomButton>
     </div>
   );
 };

@@ -147,7 +147,8 @@ export function fetchProductVariants(productId: string): ProductVariant[] {
           id: 6, 
           title: "Limpieza", 
           estimatedTime: 10, 
-          hasInput: false,
+          hasInput: true,
+          inputType: "text",
           description: "Limpiar y preparar la materia prima." 
         },
         { 
